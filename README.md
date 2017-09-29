@@ -3,6 +3,9 @@ Some scripts and data for bluenet.
 
 ## Power data
 File names include the type of hardware, and the mac address. Then there are several keywords used:
+
+Keyword | Explanation
+------- | ----------
 NW | Means the load was N Watt.
 setup | Means that the data starts with the crownstone in setup mode, then gets setuped, then goes boots in normal mode.
 phone | Means a phone was held close to the crownstone, in order to see the interference. Usually only waves above some threshold were captured. 
