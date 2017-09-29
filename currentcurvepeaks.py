@@ -226,10 +226,19 @@ if __name__ == '__main__':
 				filteredCurrentRmsAvgs.append(int(filteredCurrentRmsAvg))
 				labels.append("rms=" + currentRms + " median=" + currentRmsAvg)
 
-	fig, axes = plt.subplots(nrows=2, sharex=True, sharey=True)
+	# nrows = 1
+	nrows = 2
+	if (len(currentCurvesFiltered)):
+		nrows+=1
+
+	fig, axes = plt.subplots(nrows=nrows, sharex=True, sharey=True)
+	if (nrows == 1):
+		axes = [axes] # Hack to make sure axes[0] works
+
 	Irmss=[]
 	IrmssFiltered=[]
 	curveStarts = []
+	row=0
 	n=0
 	windowSize=0
 	for i in range(0, len(currentCurves)):
@@ -242,22 +251,26 @@ if __name__ == '__main__':
 		# 	curve -= cZeros[i]
 		# else:
 		# 	curve -= cZero
-		axes[0].plot(range(n, n+len(curve)), curve)
+		axes[row].plot(range(n, n+len(curve)), curve)
 		# label = timestamps[i] + "\n" + labels[i]
 		# label = timestamps[i]
-		#axes[0].text(n, 4000, label, rotation=45)
+		#axes[row].text(n, 4000, label, rotation=45)
 
 		if not filteredCurrentInFile:
 			# curveFiltered = signal.medfilt(curve, 7)
 
-			# halfWindow = 5
+			halfWindow = 5
 			halfWindow = 16
 			windowSize = halfWindow * 2 + 1
 			curveExt = halfWindow*[curve[0]]
 			curveExt.extend(curve)
 			curveExt.extend(halfWindow*[curve[-1]])
 			blockCount = len(curveExt) / windowSize
-			curveFiltered = sort_median(halfWindow, blockCount, curveExt)
+			if (blockCount * windowSize != len(curveExt)):
+				print i, len(curve), len(curveExt)
+				curveFiltered = curve
+			else:
+				curveFiltered = sort_median(halfWindow, blockCount, curveExt)
 
 
 			# # Filter again with same window size!
@@ -267,9 +280,9 @@ if __name__ == '__main__':
 			# blockCount = len(curveExt) / windowSize
 			# curveFiltered = sort_median(halfWindow, blockCount, curveExt)
 
-
-			#axes[0].plot(range(n, n+len(curveFiltered)), curveFiltered, '--')
+			#axes[row].plot(range(n, n+len(curveFiltered)), curveFiltered, '--')
 			currentCurvesFiltered.append(curveFiltered)
+			pass
 
 		# Calculate Irms
 		ISquareSum = 0
@@ -280,42 +293,42 @@ if __name__ == '__main__':
 		curveStarts.append(n)
 		n += len(curve) + 10
 
-	# axes[0].plot(curveStarts, currentRmses,   'ro') # red
-	# axes[0].plot(curveStarts, currentRmsAvgs, 'bo') # blue
+	# axes[row].plot(curveStarts, currentRmses,   'ro') # red
+	# axes[row].plot(curveStarts, currentRmsAvgs, 'bo') # blue
 	if (len(cZeros)):
-		axes[0].plot(curveStarts, cZeros, 'ko') # black
-	# axes[0].plot(curveStarts, Irmss, 'go') # green
-	# axes[0].plot([curveStarts[0], curveStarts[-1]], [0, 0], 'k') # black
+		axes[row].plot(curveStarts, cZeros, 'ko') # black
+	# axes[row].plot(curveStarts, Irmss, 'go') # green
+	# axes[row].plot([curveStarts[0], curveStarts[-1]], [0, 0], 'k') # black
 
-	# n=0
-	for i in range(0, len(currentCurvesFiltered)):
-		curve = np.array(currentCurvesFiltered[i])
-		# if (filteredCurrentInFile):
-		# 	if (len(cZeros)):
-		# 		curve -= cZeros[i]
-		# 	else:
-		# 		curve -= cZero
-		n = curveStarts[i]
-		axes[1].plot(range(n, n+len(curve)), curve)
+	if (len(currentCurvesFiltered)):
+		row += 1
+		# n=0
+		for i in range(0, len(currentCurvesFiltered)):
+			curve = np.array(currentCurvesFiltered[i])
+			# if (filteredCurrentInFile):
+			# 	if (len(cZeros)):
+			# 		curve -= cZeros[i]
+			# 	else:
+			# 		curve -= cZero
+			n = curveStarts[i]
+			axes[row].plot(range(n, n+len(curve)), curve)
 
-		# Calculate Irms
-		ISquareSum = 0
-		for c in curve:
-			ISquareSum += c**2
-		IrmssFiltered.append((ISquareSum * cMultiplier**2 / len(curve))**0.5 * 1000)
-		# n += len(curve) + 10
+			# Calculate Irms
+			ISquareSum = 0
+			for c in curve:
+				ISquareSum += c**2
+			IrmssFiltered.append((ISquareSum * cMultiplier**2 / len(curve))**0.5 * 1000)
+			# n += len(curve) + 10
 
-	# axes[1].plot(curveStarts, filteredCurrentRmses,   'ro') # red
-	# axes[1].plot(curveStarts, filteredCurrentRmsAvgs, 'bo') # blue
-	if (len(cZeros)):
-		axes[1].plot(curveStarts, cZeros, 'ko') # black
-	# axes[1].plot(curveStarts, IrmssFiltered, 'go') # green
-	# axes[1].plot([curveStarts[0], curveStarts[-1]], [0, 0], 'k') # black
+		# axes[row].plot(curveStarts, filteredCurrentRmses,   'ro') # red
+		# axes[row].plot(curveStarts, filteredCurrentRmsAvgs, 'bo') # blue
+		if (len(cZeros)):
+			axes[row].plot(curveStarts, cZeros, 'ko') # black
+		# axes[row].plot(curveStarts, IrmssFiltered, 'go') # green
+		# axes[row].plot([curveStarts[0], curveStarts[-1]], [0, 0], 'k') # black
 
-	if windowSize:
-		plt.title("window=" + str(windowSize))
-
-	# currentCurvesFilteredMore = []
+		if windowSize:
+			axes[row].set_title("window=" + str(windowSize))
 
 
 	# plt.figure()
@@ -325,5 +338,7 @@ if __name__ == '__main__':
 	# 	plt.plot(range(n, n+len(curve)), curve)
 	# 	plt.text(n, 4000, labels[i], rotation=45)
 	# 	n += len(curve) + 10
+
+	axes[0].set_title(options.data_file)
 
 	plt.show()
