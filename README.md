@@ -1,6 +1,12 @@
 # scripts-bluenet
 Some scripts and data for bluenet.
 
+## Dependencies
+
+- Python (only tested on 2.7)
+- [Matplotlib](http://matplotlib.org/)
+- [NumPy](http://www.numpy.org/)
+
 ## Power data
 File names include the type of hardware, and the mac address. Then there are several keywords used:
 
