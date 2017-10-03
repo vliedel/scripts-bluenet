@@ -8,6 +8,11 @@ Some scripts and data for bluenet.
 - [NumPy](http://www.numpy.org/)
 
 ## Power data
+
+Usage:
+
+    ./currentcurvepeaks.py -f data/power/current-curve.txt
+
 File names include the type of hardware, and the mac address. Then there are several keywords used:
 
 Keyword | Explanation
