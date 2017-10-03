@@ -229,7 +229,8 @@ if __name__ == '__main__':
 	# nrows = 1
 	nrows = 2
 	if (len(currentCurvesFiltered)):
-		nrows+=1
+		# nrows+=1
+		pass
 
 	fig, axes = plt.subplots(nrows=nrows, sharex=True, sharey=True)
 	if (nrows == 1):
@@ -242,19 +243,26 @@ if __name__ == '__main__':
 	n=0
 	windowSize=0
 	for i in range(0, len(currentCurves)):
+		# Filter out certain curves
 #		if (currentRmsAvgs[i] <= 1000 and currentRmses[i] <= 5000):
 #		if (currentRmses[i] <= 5000):
 #		if (currentRmsAvgs[i] <= 2000):
 #			continue
+
 		curve = np.array(currentCurves[i])
-		# if (len(cZeros)):
-		# 	curve -= cZeros[i]
-		# else:
-		# 	curve -= cZero
+
+#		# Subtract the zero from each curve
+#		if (len(cZeros)):
+#			curve -= cZeros[i]
+#		else:
+#			curve -= cZero
+
 		axes[row].plot(range(n, n+len(curve)), curve)
-		# label = timestamps[i] + "\n" + labels[i]
-		# label = timestamps[i]
-		#axes[row].text(n, 4000, label, rotation=45)
+
+#		# Add a label to each curve
+#		label = timestamps[i] + "\n" + labels[i]
+#		label = timestamps[i]
+#		axes[row].text(n, 4000, label, rotation=45)
 
 		if not filteredCurrentInFile:
 			# curveFiltered = signal.medfilt(curve, 7)
@@ -291,15 +299,18 @@ if __name__ == '__main__':
 		Irmss.append((ISquareSum * cMultiplier**2 / len(curve))**0.5 * 1000)
 
 		curveStarts.append(n)
-		n += len(curve) + 10
+#		n += len(curve) + 10
+		n += len(curve)
 
-	# axes[row].plot(curveStarts, currentRmses,   'ro') # red
-	# axes[row].plot(curveStarts, currentRmsAvgs, 'bo') # blue
+#	axes[row].plot(curveStarts, currentRmses,   'ro') # red
+#	axes[row].plot(curveStarts, currentRmsAvgs, 'bo') # blue
 	if (len(cZeros)):
 		axes[row].plot(curveStarts, cZeros, 'ko') # black
-	# axes[row].plot(curveStarts, Irmss, 'go') # green
-	# axes[row].plot([curveStarts[0], curveStarts[-1]], [0, 0], 'k') # black
+#	axes[row].plot(curveStarts, Irmss, 'go') # green
+#	axes[row].plot([curveStarts[0], curveStarts[-1]], [0, 0], 'k') # black
 
+
+	# Plot the filtered curves
 	if (len(currentCurvesFiltered)):
 		row += 1
 		# n=0
@@ -331,13 +342,14 @@ if __name__ == '__main__':
 			axes[row].set_title("window=" + str(windowSize))
 
 
-	# plt.figure()
-	# n=0
-	# for i in range(0, len(voltageCurves)):
-	# 	curve = voltageCurves[i]
-	# 	plt.plot(range(n, n+len(curve)), curve)
-	# 	plt.text(n, 4000, labels[i], rotation=45)
-	# 	n += len(curve) + 10
+	# Plot voltage
+#	plt.figure()
+#	n=0
+#	for i in range(0, len(voltageCurves)):
+#		curve = voltageCurves[i]
+#		plt.plot(range(n, n+len(curve)), curve)
+#		plt.text(n, 4000, labels[i], rotation=45)
+#		n += len(curve) + 10
 
 	axes[0].set_title(options.data_file)
 
