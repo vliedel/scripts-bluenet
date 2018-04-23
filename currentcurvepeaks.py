@@ -149,6 +149,12 @@ if __name__ == '__main__':
 				default=False,
 				help="Input data contains filtered curves too."
 				)
+		parser.add_option('-V', '--voltage',
+				action="store_true",
+				dest="showVoltage",
+				default=False,
+				help="Show voltage curves too."
+				)
 
 		options, args = parser.parse_args()
 
@@ -341,15 +347,15 @@ if __name__ == '__main__':
 		if windowSize:
 			axes[row].set_title("window=" + str(windowSize))
 
-
+	if (options.showVoltage):
 	# Plot voltage
-#	plt.figure()
-#	n=0
-#	for i in range(0, len(voltageCurves)):
-#		curve = voltageCurves[i]
-#		plt.plot(range(n, n+len(curve)), curve)
-#		plt.text(n, 4000, labels[i], rotation=45)
-#		n += len(curve) + 10
+		plt.figure()
+		n=0
+		for i in range(0, len(voltageCurves)):
+			curve = voltageCurves[i]
+			plt.plot(range(n, n+len(curve)), curve)
+			#plt.text(n, 4000, labels[i], rotation=45)
+			n += len(curve) + 10
 
 	axes[0].set_title(options.data_file)
 
