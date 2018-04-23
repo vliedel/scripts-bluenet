@@ -25,7 +25,8 @@ def main():
 		allSamples.extend(samples)
 		global allTimestamps
 		allTimestamps.extend(timestampsMs)
-	plt.plot(allTimestamps, allSamples)
+		plt.plot(timestampsMs, samples, '-o')
+	# plt.plot(allTimestamps, allSamples, '-o')
 	plt.show()
 
 main()
