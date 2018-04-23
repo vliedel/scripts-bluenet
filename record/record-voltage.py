@@ -10,6 +10,7 @@ from BluenetLib.lib.topics.DevTopics import DevTopics
 # Declare vars so they can be used globally
 bluenet = None
 outputFile = None
+wroteFirstEntry = False
 
 def main():
 	# Read config file
@@ -26,6 +27,7 @@ def main():
 	# Output file
 	global outputFile
 	outputFile = open(outputFilename, 'w') # 'w' for overwrite, 'a' for append
+	outputFile.write('[\n')
 
 	# Create new instance of Bluenet
 	global bluenet
@@ -48,22 +50,33 @@ def main():
 	bluenet._usbDev.setSendVoltageSamples(True)
 
 
-# make sure everything is killed and cleaned up on abort.
-def stopAll(signal, frame):
-	bluenet.stop()
-	if (outputFile is not None):
-		outputFile.close()
-
 def onSamples(data):
 	print("onSamples:", data)
-	jsonStr = json.dumps({'samples': data['data']})
+	jsonStr = json.dumps({'samples': data['data'], 'timestamp': data['timestamp']})
 	# json.dump(jsonData, outputFile)
-	outputFile.write(jsonStr)
-	outputFile.write('\n')
+	try:
+		global wroteFirstEntry
+		if (wroteFirstEntry):
+			outputFile.write(',\n')
+		wroteFirstEntry = True
+
+		outputFile.write(jsonStr)
+	except ValueError:
+		print("Failed to write samples")
+
+
 
 def onAdcConfig(data):
 	print("onAdcConfig:", data)
 
+
+
+# make sure everything is killed and cleaned up on abort.
+def stopAll(signal, frame):
+	bluenet.stop()
+	if (outputFile is not None):
+		outputFile.write('\n]\n')
+		outputFile.close()
 
 # Call main
 main()
