@@ -3,6 +3,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import json
+import sys, os
 
 # Config
 RTC_CLOCK_FREQ = 32768
@@ -13,7 +14,10 @@ allSamples = []
 allTimestamps = []
 
 def main():
-	f = open('voltage.json', 'r')
+	fileName = sys.argv[1]
+	dirPath = os.getcwd()
+	# f = open(dirPath + '/' + fileName, 'r')
+	f = open(fileName, 'r')
 	data = json.load(f)
 	for entry in data:
 		# print(entry)
