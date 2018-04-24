@@ -18,13 +18,15 @@ def main():
 	jsonConfigData = json.load(jsonConfigFile)
 
 	# Get optional configs from file
-	device =         jsonConfigData.get('device', '/dev/ttyUSB0')
-	baudrate =       jsonConfigData.get('baudrate', 230400)
-	outputFilename = jsonConfigData.get('outputFilename', 'voltage.json')
+	device =               jsonConfigData.get('device', '/dev/ttyUSB0')
+	baudrate =             jsonConfigData.get('baudrate', 230400)
+	outputFilenamePrefix = jsonConfigData.get('outputFilenamePrefix', 'voltage')
 
 	jsonConfigFile.close()
 
 	# Output file
+	timeStr = time.strftime("%Y-%m-%d--%H-%M-%S")
+	outputFilename = outputFilenamePrefix + "-" + timeStr + ".json"
 	global outputFile
 	outputFile = open(outputFilename, 'w') # 'w' for overwrite, 'a' for append
 	outputFile.write('[\n')
