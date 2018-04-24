@@ -4,6 +4,7 @@
 
 import time, signal
 import json
+import select, sys
 from BluenetLib import Bluenet, BluenetEventBus, Topics
 from BluenetLib.lib.topics.DevTopics import DevTopics
 
@@ -11,6 +12,9 @@ from BluenetLib.lib.topics.DevTopics import DevTopics
 bluenet = None
 outputFile = None
 wroteFirstEntry = False
+sigInt = False
+outputFilenamePrefix = None
+outputFileDir = None
 
 def main():
 	# Read config file
@@ -20,17 +24,14 @@ def main():
 	# Get optional configs from file
 	device =               jsonConfigData.get('device', '/dev/ttyUSB0')
 	baudrate =             jsonConfigData.get('baudrate', 230400)
+	global outputFilenamePrefix
 	outputFilenamePrefix = jsonConfigData.get('outputFilenamePrefix', 'voltage')
+	global outputFileDir
 	outputFileDir =        jsonConfigData.get('outputFileDir', '.')
 
 	jsonConfigFile.close()
 
-	# Output file
-	timeStr = time.strftime("%Y-%m-%d--%H-%M-%S")
-	outputFilename = outputFilenamePrefix + "-" + timeStr + ".json"
-	global outputFile
-	outputFile = open(outputFileDir + '/' + outputFilename, 'w') # 'w' for overwrite, 'a' for append
-	outputFile.write('[\n')
+	newOutputFile()
 
 	# Create new instance of Bluenet
 	global bluenet
@@ -51,6 +52,50 @@ def main():
 
 	# Enable voltage logs
 	bluenet._usbDev.setSendVoltageSamples(True)
+
+	while not sigInt:
+		inputStr = pollKeyboardEnter()
+		if inputStr is not None:
+			newOutputFile()
+
+
+
+def pollKeyboardEnter():
+	# Polls for keyboard input
+	# I have no idea how this works, got it from: https://stackoverflow.com/questions/292095/polling-the-keyboard-detect-a-keypress-in-python
+	timeout = 0.0001
+	try:
+		i,o,e = select.select([sys.stdin], [], [], timeout)
+		for s in i:
+			if s == sys.stdin:
+				inputStr = sys.stdin.readline()
+				print("input:", inputStr)
+				return inputStr
+	except InterruptedError:
+		return None
+	return None
+
+
+
+def newOutputFile():
+	global outputFile
+
+	closeOutputFile()
+
+	timeStr = time.strftime("%Y-%m-%d--%H-%M-%S")
+	outputFilename = outputFilenamePrefix + "-" + timeStr + ".json"
+	outputFile = open(outputFileDir + '/' + outputFilename, 'w') # 'w' for overwrite, 'a' for append
+	outputFile.write('[\n')
+	global wroteFirstEntry
+	wroteFirstEntry = False
+
+
+
+def closeOutputFile():
+	if outputFile is not None:
+		outputFile.write('\n]\n')
+		outputFile.close()
+
 
 
 def onSamples(data):
@@ -76,10 +121,10 @@ def onAdcConfig(data):
 
 # make sure everything is killed and cleaned up on abort.
 def stopAll(signal, frame):
+	global sigInt
+	sigInt = True
 	bluenet.stop()
-	if (outputFile is not None):
-		outputFile.write('\n]\n')
-		outputFile.close()
+	closeOutputFile()
 
 # Call main
 main()
