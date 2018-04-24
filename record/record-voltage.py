@@ -21,6 +21,7 @@ def main():
 	device =               jsonConfigData.get('device', '/dev/ttyUSB0')
 	baudrate =             jsonConfigData.get('baudrate', 230400)
 	outputFilenamePrefix = jsonConfigData.get('outputFilenamePrefix', 'voltage')
+	outputFileDir =        jsonConfigData.get('outputFileDir', '.')
 
 	jsonConfigFile.close()
 
@@ -28,7 +29,7 @@ def main():
 	timeStr = time.strftime("%Y-%m-%d--%H-%M-%S")
 	outputFilename = outputFilenamePrefix + "-" + timeStr + ".json"
 	global outputFile
-	outputFile = open(outputFilename, 'w') # 'w' for overwrite, 'a' for append
+	outputFile = open(outputFileDir + '/' + outputFilename, 'w') # 'w' for overwrite, 'a' for append
 	outputFile.write('[\n')
 
 	# Create new instance of Bluenet
