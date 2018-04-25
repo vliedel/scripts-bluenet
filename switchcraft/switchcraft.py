@@ -10,7 +10,9 @@ RTC_CLOCK_FREQ = 32768
 MAX_RTC_COUNTER_VAL = 0x00FFFFFF
 SAMPLE_TIME_US = 200
 NUM_BUFFERS = 4
-DEFAULT_AMPLITUDE = 1500
+# Normalize to amplitude of 1500 (close to original signal)
+# This works better, because the otherwise a difference in mean of 1 is a relative big difference
+NORMALIZED_AMPLITUDE = 1500
 MAX_DIFF_PER_SAMPLE = 450 # 450**2 = 202,500, so 2 of those are still below threshold
 THRESHOLD = 500000 # Max seen in non switch data is about 350,000
 PLOT = True
@@ -93,7 +95,9 @@ def main():
 						ax1.plot(timestampsMs, samplesList[-1], '-o')
 					else:
 						if shiftScore > THRESHOLD:
-							ax1.plot(timestampsMs, samples, '-o')
+							ax1.plot(allTimestamps[-2], samplesList[-3], '-o') # Previous buffer
+							ax1.plot(allTimestamps[-1], samplesList[-2], '-o') # Previous buffer
+							ax1.plot(timestampsMs, samplesList[-1], '-o')
 							ax2.plot(timestampMs, shiftScore, 's')
 
 				scoresX.append(timestampMs)
@@ -103,8 +107,8 @@ def main():
 			else:
 				samplesList.append(samples)
 			i += 1
-			allSamples.extend(samples)
-			allTimestamps.extend(timestampsMs)
+			allSamples.append(samples)
+			allTimestamps.append(timestampsMs)
 		if PLOT:
 			if PLOT_DEBUG:
 				ax2.plot(scoresX, scoresY, '-o')
@@ -127,54 +131,33 @@ def main():
 
 
 
+def calcMeanAndAmplitude(buffer):
+	# Calc mean by average of samples, and amplitude by using tops
+	sum = 0.0
+	maxVal = -10000
+	minVal = 10000
+	for val in buffer:
+		if (val > maxVal):
+			maxVal = val
+		if (val < minVal):
+			minVal = val
+		sum += val
+
+	amplitude = 0.5*(maxVal - minVal)
+	mean = 1.0 * sum / len(buffer)
+	return (mean, amplitude)
+
+
 def normalizeSamples(bufferList):
-	# # Calc amplitude and mean, by using tops and sum
-	# # Calc mean over all buffer in list, while amplitude is calculated per buffer
-	# sum = 0.0
-	# amplitudeList = []
-	# for buffer in bufferList:
-	# 	maxVal = -10000
-	# 	minVal = 10000
-	# 	for val in buffer:
-	# 		if (val > maxVal):
-	# 			maxVal = val
-	# 		if (val < minVal):
-	# 			minVal = val
-	# 		sum += val
-	#
-	# 	amplitude = 0.5*(maxVal - minVal)
-	# 	amplitudeList.append(amplitude)
-	# mean = 1.0 * sum / len(bufferList[0]) / len(bufferList)
-	#
-	# for buffer, amplitude in zip(bufferList, amplitudeList):
-	# 	# Normalize
-	# 	for i in range(0, len(buffer)):
-	# 		buffer[i] = (buffer[i] - mean) / amplitude * 1500 + mean
-	# 		# buffer[i] = (buffer[i] - mean) / amplitude + mean
-
-	# Calc amplitude and mean, by using tops and sum
 	for buffer in bufferList:
-		sum = 0.0
-		maxVal = -10000
-		minVal = 10000
-		for val in buffer:
-			if (val > maxVal):
-				maxVal = val
-			if (val < minVal):
-				minVal = val
-			sum += val
+		(mean, amplitude) = calcMeanAndAmplitude(buffer)
 
-		amplitude = 0.5*(maxVal - minVal)
-		mean = 1.0 * sum / len(buffer)
-
-		# Normalize
 		for i in range(0, len(buffer)):
-			# Normalize to amplitude of 1500 (close to original signal)
-			# This works better, because the otherwise a difference in mean of 1 is a relative big difference
-			buffer[i] = (buffer[i] - mean) / amplitude * DEFAULT_AMPLITUDE + mean
-			# # Normalize to amplitude of 1
-			# buffer[i] = (buffer[i] - mean) / amplitude + mean
+			buffer[i] = normalize(buffer[i], mean, amplitude)
 
+
+def normalize(sample, mean, amplitude):
+	return (sample - mean) / amplitude * NORMALIZED_AMPLITUDE + mean
 
 
 def calcDiff(samplesList, shift=0):
@@ -192,8 +175,9 @@ def calcDiff(samplesList, shift=0):
 				d = MAX_DIFF_PER_SAMPLE
 			diff += d ** 2
 	else:
-		for i in range(-shift, len(checkSamples)):
-			diff += (checkSamples[i+shift] - prevSamples[i]) ** 2
+		shift = -shift
+		for i in range(shift, len(checkSamples)):
+			diff += (checkSamples[i-shift] - prevSamples[i]) ** 2
 
 	return diff
 
@@ -207,13 +191,14 @@ def calcDiffWithShifts(samplesList):
 		if (diff < minDiff):
 			minDiff = diff
 			bestShift = shift
-	if (bestShift != 0):
-		print("bestShift=", bestShift)
+	# if (bestShift != 0):
+	# 	print("bestShift=", bestShift)
 	return minDiff
 
 
 
 def fit_sin(t, y):
+	# TODO
 	t = np.array(t)
 	y = np.array(y)
 
