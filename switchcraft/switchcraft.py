@@ -9,13 +9,16 @@ import sys, os
 RTC_CLOCK_FREQ = 32768
 MAX_RTC_COUNTER_VAL = 0x00FFFFFF
 SAMPLE_TIME_US = 200
+# SAMPLE_TIME_US = 400 # For the single channel data
 NUM_BUFFERS = 4
 # Normalize to amplitude of 1500 (close to original signal)
 # This works better, because the otherwise a difference in mean of 1 is a relative big difference
 NORMALIZED_AMPLITUDE = 1500
 MAX_DIFF_PER_SAMPLE = 450 # 450**2 = 202,500, so 2 of those are still below threshold
 THRESHOLD = 500000 # Max seen in non switch data is about 350,000
+# THRESHOLD = 250000 # For the single channel data
 PLOT = True
+PLOT_NONE_FOUND = False
 PLOT_DEBUG = False
 MIN_SHIFT = -2
 MAX_SHIFT = 2
@@ -67,12 +70,20 @@ def main():
 		shiftScores = []
 		allSamples = []
 		allTimestamps = []
+		timestamps = [] # List of raw timestamps of all buffers
+		timestampDiffs = [0] # List of timestamp diff between buffers
 
 		for entry in data:
 			samples = entry['samples']
 			timestamp = entry['timestamp']
+			timestamps.append(timestamp)
 			timestampMs = timestamp * 1000.0 / RTC_CLOCK_FREQ
 			timestampsMs = np.array(range(0,len(samples))) * SAMPLE_TIME_US / 1000.0 + timestampMs
+
+			if i>0:
+				timestampDiff = (timestamps[-1] - timestamps[-2]) & MAX_RTC_COUNTER_VAL
+				timestampDiffs.append(timestampDiff)
+
 			if PLOT_DEBUG:
 				ax1.plot(timestampsMs, samples, '--')
 
@@ -100,6 +111,11 @@ def main():
 							ax1.plot(timestampsMs, samplesList[-1], '-o')
 							ax2.plot(timestampMs, shiftScore, 's')
 
+							ax1.plot(allTimestamps[-2][0], timestampDiffs[-3] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '<')
+							ax1.plot(allTimestamps[-1][0], timestampDiffs[-2] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '<')
+							ax1.plot(timestampMs, timestampDiffs[-1] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '<')
+
+
 				scoresX.append(timestampMs)
 				scoresY.append(score)
 				shiftScores.append(shiftScore)
@@ -109,16 +125,32 @@ def main():
 			i += 1
 			allSamples.append(samples)
 			allTimestamps.append(timestampsMs)
+
+		# End of loop over different buffers
 		if PLOT:
 			if PLOT_DEBUG:
 				ax2.plot(scoresX, scoresY, '-o')
 				ax2.plot(scoresX, shiftScores, '-s')
-			else:
+
+				fig2, fig2Axes = plt.subplots()
+				timestampDiffs = []
+				for i in range(1, len(timestamps)):
+					timestampDiff = (timestamps[i] - timestamps[i-1]) & MAX_RTC_COUNTER_VAL
+					timestampDiffs.append(-timestampDiff * 1000.0 * 1000.0 / RTC_CLOCK_FREQ)
+				ax1.plot(np.array(allTimestamps[1:])[:,0], timestampDiffs)
+				# fig2Axes.violinplot(timestampDiffs)
+				hist, bins = np.histogram(timestampDiffs, 100, density=True)
+				width = 0.7 * (bins[1] - bins[0])
+				center = (bins[:-1] + bins[1:]) / 2
+				fig2Axes.bar(center, hist*width, align='center', width=width)
+
+			elif PLOT_NONE_FOUND:
 				if max(shiftScores) <= THRESHOLD:
-					ax1.plot(allTimestamps, allSamples, '-o')
+					ax1.plot(np.transpose(allTimestamps), np.transpose(allSamples), '-o')
 					ax2.plot(scoresX, shiftScores, '-s')
-					print("No switch found for", fileName)
-		print(fileName, "{:12.0f}".format(max(scoresY)), "{:12.0f}".format(max(shiftScores)))
+
+		foundStr = "switch found" if (max(shiftScores) > THRESHOLD) else "no switch found"
+		print(fileName, "{:12.0f}".format(max(scoresY)), "{:12.0f}".format(max(shiftScores)), foundStr)
 		if max(shiftScores) > THRESHOLD:
 			filesWithSwitch += 1
 		else:
