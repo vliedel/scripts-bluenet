@@ -44,7 +44,7 @@ def main():
 				if (firstSamplesFound):
 					restartTimestamps.append(timestampsMs[-1])
 		plt.plot(allTimestamps, allSamples)
-		plt.plot(restartTimestamps, [0]*len(restartTimestamps), 'o')
+		plt.plot(restartTimestamps, [0]*len(restartTimestamps), 'x')
 		plt.title(fileName)
 	plt.show()
 
