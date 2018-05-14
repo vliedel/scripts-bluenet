@@ -40,6 +40,7 @@ def main():
 	# Set up event listeners
 	BluenetEventBus.subscribe(DevTopics.newVoltageData, onSamples)
 	BluenetEventBus.subscribe(DevTopics.newAdcConfigPacket, onAdcConfig)
+	BluenetEventBus.subscribe(DevTopics.adcRestarted, onAdcRestarted)
 
 	# start listener for SIGINT kill command
 	signal.signal(signal.SIGINT, stopAll)
@@ -117,6 +118,18 @@ def onSamples(data):
 def onAdcConfig(data):
 	print("onAdcConfig:", data)
 
+def onAdcRestarted(data):
+	print("onAdcRestart")
+	jsonStr = json.dumps({'restart': True})
+	try:
+		global wroteFirstEntry
+		if (wroteFirstEntry):
+			outputFile.write(',\n')
+		wroteFirstEntry = True
+
+		outputFile.write(jsonStr)
+	except ValueError:
+		print("Failed to write samples")
 
 
 # make sure everything is killed and cleaned up on abort.
