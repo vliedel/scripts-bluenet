@@ -28,6 +28,7 @@ def main():
 	outputFilenamePrefix = jsonConfigData.get('outputFilenamePrefix', 'voltage')
 	global outputFileDir
 	outputFileDir =        jsonConfigData.get('outputFileDir', '.')
+	readStdin =            jsonConfigData.get('readStdin', True)
 
 	jsonConfigFile.close()
 
@@ -55,9 +56,10 @@ def main():
 	bluenet._usbDev.setSendVoltageSamples(True)
 
 	while not sigInt:
-		inputStr = pollKeyboardEnter()
-		if inputStr is not None:
-			newOutputFile()
+		if (readStdin):
+			inputStr = pollKeyboardEnter()
+			if inputStr is not None:
+				newOutputFile()
 
 
 
