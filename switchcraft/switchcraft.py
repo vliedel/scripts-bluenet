@@ -64,7 +64,8 @@ def main():
 		f = open(fileName, 'r')
 		data = json.load(f)
 		i = 0
-		samplesList = []
+		skipBuffers = (NUM_BUFFERS-2) # Number of buffers to skip before starting the algorithm
+		samplesList = [] # Small list of buffers that the algorithm can use for detection
 		scoresX = []
 		scoresY = []
 		shiftScores = []
@@ -72,59 +73,74 @@ def main():
 		allTimestamps = []
 		timestamps = [] # List of raw timestamps of all buffers
 		timestampDiffs = [0] # List of timestamp diff between buffers
+		restarted = True
+		restartTimestampsMs = []
 
 		for entry in data:
-			samples = entry['samples']
-			timestamp = entry['timestamp']
-			timestamps.append(timestamp)
-			timestampMs = timestamp * 1000.0 / RTC_CLOCK_FREQ
-			timestampsMs = np.array(range(0,len(samples))) * SAMPLE_TIME_US / 1000.0 + timestampMs
+			if ('restart' in entry):
+				restarted = True
+			elif ('samples' in entry):
+				samples = entry['samples']
+				timestamp = entry['timestamp']
+				timestamps.append(timestamp)
+				timestampMs = timestamp * 1000.0 / RTC_CLOCK_FREQ
+				timestampsMs = np.array(range(0,len(samples))) * SAMPLE_TIME_US / 1000.0 + timestampMs
 
-			if i>0:
-				timestampDiff = (timestamps[-1] - timestamps[-2]) & MAX_RTC_COUNTER_VAL
-				timestampDiffs.append(timestampDiff)
+				if (restarted):
+					restartTimestampsMs.append(timestampMs)
+					restarted = False
+					skipBuffers = (NUM_BUFFERS-2)
 
-			if PLOT_DEBUG:
-				ax1.plot(timestampsMs, samples, '--')
+				if i>0:
+					timestampDiff = (timestamps[-1] - timestamps[-2]) & MAX_RTC_COUNTER_VAL
+					timestampDiffs.append(timestampDiff)
 
-			# We have the previous samples too
-			if i >= (NUM_BUFFERS-2):
-				samplesList.append(samples)
-				normalizeSamples(samplesList)
+				if PLOT_DEBUG:
+					ax1.plot(timestampsMs, samples, '--')
 
-				diffBuffer = []
-				for i in range(0, len(samplesList[0])):
-					diffBuffer.append(samplesList[-1][i] - samplesList[-2][i])
-				if PLOT and PLOT_DEBUG:
-					ax1.plot(timestampsMs, diffBuffer)
+				# We have the previous samples too
+				# if i >= (NUM_BUFFERS-2):
+				if (skipBuffers == 0):
+					samplesList.append(samples)
+					normalizedBufferList = normalizeSamples(samplesList)
+
+					diffBuffer = []
+					for i in range(0, len(normalizedBufferList[0])):
+						diffBuffer.append(normalizedBufferList[-1][i] - normalizedBufferList[-2][i])
+					if PLOT and PLOT_DEBUG:
+						ax1.plot(timestampsMs, diffBuffer)
 
 
-				score = calcDiff(samplesList)
-				shiftScore = calcDiffWithShifts(samplesList)
-				if PLOT:
-					if PLOT_DEBUG:
-						ax1.plot(timestampsMs, samplesList[-1], '-o')
-					else:
-						if shiftScore > THRESHOLD:
-							ax1.plot(allTimestamps[-2], samplesList[-3], '-o') # Previous buffer
-							ax1.plot(allTimestamps[-1], samplesList[-2], '-o') # Previous buffer
+					score = calcDiff(normalizedBufferList)
+					shiftScore = calcDiffWithShifts(normalizedBufferList)
+					usedScore = score
+					if PLOT:
+						if PLOT_DEBUG:
 							ax1.plot(timestampsMs, samplesList[-1], '-o')
-							ax2.plot(timestampMs, shiftScore, 's')
+						else:
+							if usedScore > THRESHOLD:
+								ax1.plot(allTimestamps[-2], samplesList[-3], '-o') # Previous buffer
+								ax1.plot(allTimestamps[-1], samplesList[-2], '-o') # Previous buffer
+								ax1.plot(timestampsMs, samplesList[-1], '-o')
+								ax2.plot(timestampMs, usedScore, 's')
 
-							ax1.plot(allTimestamps[-2][0], timestampDiffs[-3] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '<')
-							ax1.plot(allTimestamps[-1][0], timestampDiffs[-2] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '<')
-							ax1.plot(timestampMs, timestampDiffs[-1] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '<')
+								# plot time diffs
+								# ax1.plot(allTimestamps[-2][0], timestampDiffs[-3] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '<')
+								# ax1.plot(allTimestamps[-1][0], timestampDiffs[-2] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '<')
+								# ax1.plot(timestampMs, timestampDiffs[-1] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '<')
 
 
-				scoresX.append(timestampMs)
-				scoresY.append(score)
-				shiftScores.append(shiftScore)
-				samplesList.pop(0)
-			else:
-				samplesList.append(samples)
-			i += 1
-			allSamples.append(samples)
-			allTimestamps.append(timestampsMs)
+					scoresX.append(timestampMs)
+					scoresY.append(score)
+					shiftScores.append(shiftScore)
+					samplesList.pop(0)
+				else:
+					samplesList.append(samples)
+					skipBuffers -= 1
+				i += 1
+				allSamples.append(samples)
+				allTimestamps.append(timestampsMs)
+
 
 		# End of loop over different buffers
 		if PLOT:
@@ -148,6 +164,8 @@ def main():
 				if max(shiftScores) <= THRESHOLD:
 					ax1.plot(np.transpose(allTimestamps), np.transpose(allSamples), '-o')
 					ax2.plot(scoresX, shiftScores, '-s')
+		if PLOT_DEBUG or PLOT_NONE_FOUND:
+			ax1.plot(restartTimestampsMs, [0]*len(restartTimestampsMs), 'x')
 
 		foundStr = "switch found" if (max(shiftScores) > THRESHOLD) else "no switch found"
 		print(fileName, "{:12.0f}".format(max(scoresY)), "{:12.0f}".format(max(shiftScores)), foundStr)
@@ -181,11 +199,16 @@ def calcMeanAndAmplitude(buffer):
 
 
 def normalizeSamples(bufferList):
+	# Returns normalized bufferlist
+	normalizedBufferList = []
 	for buffer in bufferList:
 		(mean, amplitude) = calcMeanAndAmplitude(buffer)
 
+		normalizedBuffer = [0.0]*len(buffer)
 		for i in range(0, len(buffer)):
-			buffer[i] = normalize(buffer[i], mean, amplitude)
+			normalizedBuffer[i] = normalize(buffer[i], mean, amplitude)
+		normalizedBufferList.append(normalizedBuffer)
+	return normalizedBufferList
 
 
 def normalize(sample, mean, amplitude):
