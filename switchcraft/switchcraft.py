@@ -90,6 +90,7 @@ def main():
 					restartTimestampsMs.append(timestampMs)
 					restarted = False
 					skipBuffers = (NUM_BUFFERS-2)
+					samplesList.clear()
 
 				if i>0:
 					timestampDiff = (timestamps[-1] - timestamps[-2]) & MAX_RTC_COUNTER_VAL
@@ -105,8 +106,8 @@ def main():
 					normalizedBufferList = normalizeSamples(samplesList)
 
 					diffBuffer = []
-					for i in range(0, len(normalizedBufferList[0])):
-						diffBuffer.append(normalizedBufferList[-1][i] - normalizedBufferList[-2][i])
+					for j in range(0, len(normalizedBufferList[0])):
+						diffBuffer.append(normalizedBufferList[-1][j] - normalizedBufferList[-2][j])
 					if PLOT and PLOT_DEBUG:
 						ax1.plot(timestampsMs, diffBuffer)
 
@@ -153,7 +154,8 @@ def main():
 				for i in range(1, len(timestamps)):
 					timestampDiff = (timestamps[i] - timestamps[i-1]) & MAX_RTC_COUNTER_VAL
 					timestampDiffs.append(-timestampDiff * 1000.0 * 1000.0 / RTC_CLOCK_FREQ)
-				ax1.plot(np.array(allTimestamps[1:])[:,0], timestampDiffs)
+				# ax1.plot(np.array(allTimestamps[1:])[:,0], timestampDiffs)
+
 				# fig2Axes.violinplot(timestampDiffs)
 				hist, bins = np.histogram(timestampDiffs, 100, density=True)
 				width = 0.7 * (bins[1] - bins[0])
@@ -203,16 +205,14 @@ def normalizeSamples(bufferList):
 	normalizedBufferList = []
 	for buffer in bufferList:
 		(mean, amplitude) = calcMeanAndAmplitude(buffer)
+		amplitudeInv = 1.0/amplitude
 
 		normalizedBuffer = [0.0]*len(buffer)
 		for i in range(0, len(buffer)):
-			normalizedBuffer[i] = normalize(buffer[i], mean, amplitude)
+			# Normalize (done inline, as this is called many times, and function call is a lot of overhead)
+			normalizedBuffer[i] = (buffer[i] - mean) * amplitudeInv * NORMALIZED_AMPLITUDE + mean
 		normalizedBufferList.append(normalizedBuffer)
 	return normalizedBufferList
-
-
-def normalize(sample, mean, amplitude):
-	return (sample - mean) / amplitude * NORMALIZED_AMPLITUDE + mean
 
 
 def calcDiff(samplesList, shift=0):
