@@ -75,10 +75,14 @@ def main():
 		timestampDiffs = [0] # List of timestamp diff between buffers
 		restarted = True
 		restartTimestampsMs = []
+		uartNoise = False
+		uartNoiseTimestampsMs = []
 
 		for entry in data:
 			if ('restart' in entry):
 				restarted = True
+			elif ('uartNoise' in entry):
+				uartNoise = True
 			elif ('samples' in entry):
 				samples = entry['samples']
 				timestamp = entry['timestamp']
@@ -91,6 +95,9 @@ def main():
 					restarted = False
 					skipBuffers = (NUM_BUFFERS-2)
 					samplesList.clear()
+				if (uartNoise):
+					uartNoiseTimestampsMs.append(timestampMs)
+					uartNoise = False
 
 				if i>0:
 					timestampDiff = (timestamps[-1] - timestamps[-2]) & MAX_RTC_COUNTER_VAL
@@ -168,6 +175,7 @@ def main():
 					ax2.plot(scoresX, shiftScores, '-s')
 		if PLOT_DEBUG or PLOT_NONE_FOUND:
 			ax1.plot(restartTimestampsMs, [0]*len(restartTimestampsMs), 'x')
+			ax1.plot(uartNoiseTimestampsMs, [-100]*len(uartNoiseTimestampsMs), 'x')
 
 		foundStr = "switch found" if (max(shiftScores) > THRESHOLD) else "no switch found"
 		print(fileName, "{:12.0f}".format(max(scoresY)), "{:12.0f}".format(max(shiftScores)), foundStr)
