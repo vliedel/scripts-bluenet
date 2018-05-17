@@ -42,6 +42,7 @@ def main():
 	BluenetEventBus.subscribe(DevTopics.newVoltageData, onSamples)
 	BluenetEventBus.subscribe(DevTopics.newAdcConfigPacket, onAdcConfig)
 	BluenetEventBus.subscribe(DevTopics.adcRestarted, onAdcRestarted)
+	BluenetEventBus.subscribe(DevTopics.uartNoise, onUartNoise)
 
 	# start listener for SIGINT kill command
 	signal.signal(signal.SIGINT, stopAll)
@@ -131,8 +132,20 @@ def onAdcRestarted(data):
 
 		outputFile.write(jsonStr)
 	except ValueError:
-		print("Failed to write samples")
+		print("Failed to write")
 
+def onUartNoise(data):
+	print("onUartNoise")
+	jsonStr = json.dumps({'uartNoise': True})
+	try:
+		global wroteFirstEntry
+		if (wroteFirstEntry):
+			outputFile.write(',\n')
+		wroteFirstEntry = True
+
+		outputFile.write(jsonStr)
+	except ValueError:
+		print("Failed to write")
 
 # make sure everything is killed and cleaned up on abort.
 def stopAll(signal, frame):
