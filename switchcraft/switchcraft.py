@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import json
 import sys, os
+import cProfile
 
 # Config
 RTC_CLOCK_FREQ = 32768
@@ -95,13 +96,11 @@ def main():
 					restarted = False
 					skipBuffers = (NUM_BUFFERS-2)
 					samplesList.clear()
-				if (uartNoise):
-					uartNoiseTimestampsMs.append(timestampMs)
-					uartNoise = False
 
 				if i>0:
 					timestampDiff = (timestamps[-1] - timestamps[-2]) & MAX_RTC_COUNTER_VAL
 					timestampDiffs.append(timestampDiff)
+					timestampDiffMs = timestampDiff * 1000.0 / RTC_CLOCK_FREQ
 
 				if PLOT_DEBUG:
 					ax1.plot(timestampsMs, samples, '--')
@@ -121,7 +120,12 @@ def main():
 
 					score = calcDiff(normalizedBufferList)
 					shiftScore = calcDiffWithShifts(normalizedBufferList)
+					if (uartNoise and timestampDiffMs > 40):
+						score = 0
+						shiftScore = 0
 					usedScore = score
+
+
 					if PLOT:
 						if PLOT_DEBUG:
 							ax1.plot(timestampsMs, samplesList[-1], '-o')
@@ -130,12 +134,16 @@ def main():
 								ax1.plot(allTimestamps[-2], samplesList[-3], '-o') # Previous buffer
 								ax1.plot(allTimestamps[-1], samplesList[-2], '-o') # Previous buffer
 								ax1.plot(timestampsMs, samplesList[-1], '-o')
-								ax2.plot(timestampMs, usedScore, 's')
+								ax2.plot(timestampMs, score, '<')
+								ax2.plot(timestampMs, shiftScore, '>')
+								ax2.plot([allTimestamps[-2][0], timestampsMs[-1]], [THRESHOLD, THRESHOLD], '-k')
 
-								# plot time diffs
-								# ax1.plot(allTimestamps[-2][0], timestampDiffs[-3] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '<')
-								# ax1.plot(allTimestamps[-1][0], timestampDiffs[-2] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '<')
-								# ax1.plot(timestampMs, timestampDiffs[-1] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '<')
+								# # plot time diffs
+								# ax1.plot(allTimestamps[-2][0], timestampDiffs[-3] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '^')
+								# ax1.plot(allTimestamps[-1][0], timestampDiffs[-2] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '^')
+								# ax1.plot(timestampMs, timestampDiffs[-1] * 1000.0 * 1000.0 / RTC_CLOCK_FREQ, '^')
+					if usedScore > THRESHOLD:
+						print("buffer", i, "scored", usedScore, "That is", usedScore/THRESHOLD, "times threshold")
 
 
 					scoresX.append(timestampMs)
@@ -145,41 +153,46 @@ def main():
 				else:
 					samplesList.append(samples)
 					skipBuffers -= 1
+				if (uartNoise):
+					uartNoiseTimestampsMs.append(timestampMs)
+					uartNoise = False
 				i += 1
 				allSamples.append(samples)
 				allTimestamps.append(timestampsMs)
-
+			# if (i > 3500):
+			# 	break
 
 		# End of loop over different buffers
 		if PLOT:
 			if PLOT_DEBUG:
-				ax2.plot(scoresX, scoresY, '-o')
-				ax2.plot(scoresX, shiftScores, '-s')
+				ax2.plot(scoresX, scoresY, '<')
+				ax2.plot(scoresX, shiftScores, '>')
 
-				fig2, fig2Axes = plt.subplots()
-				timestampDiffs = []
-				for i in range(1, len(timestamps)):
-					timestampDiff = (timestamps[i] - timestamps[i-1]) & MAX_RTC_COUNTER_VAL
-					timestampDiffs.append(-timestampDiff * 1000.0 * 1000.0 / RTC_CLOCK_FREQ)
-				# ax1.plot(np.array(allTimestamps[1:])[:,0], timestampDiffs)
-
-				# fig2Axes.violinplot(timestampDiffs)
-				hist, bins = np.histogram(timestampDiffs, 100, density=True)
-				width = 0.7 * (bins[1] - bins[0])
-				center = (bins[:-1] + bins[1:]) / 2
-				fig2Axes.bar(center, hist*width, align='center', width=width)
+				# fig2, fig2Axes = plt.subplots()
+				# timestampDiffs = []
+				# for i in range(1, len(timestamps)):
+				# 	timestampDiff = (timestamps[i] - timestamps[i-1]) & MAX_RTC_COUNTER_VAL
+				# 	timestampDiffs.append(-timestampDiff * 1000.0 * 1000.0 / RTC_CLOCK_FREQ)
+				# # ax1.plot(np.array(allTimestamps[1:])[:,0], timestampDiffs)
+				#
+				# # fig2Axes.violinplot(timestampDiffs)
+				# hist, bins = np.histogram(timestampDiffs, 100, density=True)
+				# width = 0.7 * (bins[1] - bins[0])
+				# center = (bins[:-1] + bins[1:]) / 2
+				# fig2Axes.bar(center, hist*width, align='center', width=width)
 
 			elif PLOT_NONE_FOUND:
-				if max(shiftScores) <= THRESHOLD:
+				if max(scoresY) <= THRESHOLD:
 					ax1.plot(np.transpose(allTimestamps), np.transpose(allSamples), '-o')
 					ax2.plot(scoresX, shiftScores, '-s')
-		if PLOT_DEBUG or PLOT_NONE_FOUND:
+		if PLOT_DEBUG or (PLOT_NONE_FOUND and max(scoresY) <= THRESHOLD):
+		# if PLOT:
 			ax1.plot(restartTimestampsMs, [0]*len(restartTimestampsMs), 'x')
 			ax1.plot(uartNoiseTimestampsMs, [-100]*len(uartNoiseTimestampsMs), 'x')
 
-		foundStr = "switch found" if (max(shiftScores) > THRESHOLD) else "no switch found"
+		foundStr = "switch found" if (max(scoresY) > THRESHOLD) else "no switch found"
 		print(fileName, "{:12.0f}".format(max(scoresY)), "{:12.0f}".format(max(shiftScores)), foundStr)
-		if max(shiftScores) > THRESHOLD:
+		if max(scoresY) > THRESHOLD:
 			filesWithSwitch += 1
 		else:
 			filesWithoutSwitch += 1
@@ -287,4 +300,5 @@ def fit_sin(t, y):
 		print("No crossing found!", y)
 		return None
 
+# cProfile.run('main()')
 main()
