@@ -39,6 +39,10 @@ while True:
 		numDown += 1
 	if (numDown > 2.0/sleepTime):
 		print("shutdown")
+		os.system("sudo shutdown -h now")
+
+		# Turn led off
+		GPIO.output(PIN_LED, GPIO.LOW)
 		break
 
 GPIO.cleanup()
