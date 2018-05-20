@@ -2,6 +2,7 @@
 
 import RPi.GPIO as GPIO
 import os
+import time, datetime
 
 # Adds a shutdown button
 # Connect a button with a 1k resistor in series between GND and the pin.
@@ -29,12 +30,20 @@ try:
 	# Turn led on
 	GPIO.output(PIN_LED, GPIO.HIGH)
 
-	# Wait for input to fall to low value
-	channel = GPIO.wait_for_edge(PIN_BUTTON, GPIO.FALLING)
-	os.system("sudo shutdown -h now")
+	while True:
+		# Wait for input to fall to low value
+		channel = GPIO.wait_for_edge(PIN_BUTTON, GPIO.FALLING)
+		timestampDown = datetime.datetime.now()
 
-	# Turn led off
-	GPIO.output(PIN_LED, GPIO.LOW)
+		channel = GPIO.wait_for_edge(PIN_BUTTON, GPIO.RISING)
+		timestampUp = datetime.datetime.now()
+
+		timePressed = timestampUp - timestampDown
+		if (timePressed.total_seconds() > 2.0):
+			#os.system("sudo shutdown -h now")
+
+			# Turn led off
+			GPIO.output(PIN_LED, GPIO.LOW)
 except:
 	pass
 
