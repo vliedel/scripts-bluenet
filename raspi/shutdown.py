@@ -26,26 +26,59 @@ GPIO.setup(PIN_BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 # Setup led pin as output
 GPIO.setup(PIN_LED, GPIO.OUT)
 
+timestampDown = datetime.datetime.now()
+timestampUp = datetime.datetime.now()
+
+def onButtonDown():
+	global timestampDown
+	timestampDown = datetime.datetime.now()
+	print("debounce down")
+
+def onButtonUp():
+	global timestampUp
+	global timestampDown
+	timestampUp = datetime.datetime.now()
+	print("debounce up")
+	timePressed = timestampUp - timestampDown
+	if (timePressed.total_seconds() > 2.0):
+		print("shutdown")
+		#os.system("sudo shutdown -h now")
+
+		# Turn led off
+		GPIO.output(PIN_LED, GPIO.LOW)
+
+		GPIO.cleanup()
+		exit(0)
+
 try:
 	# Turn led on
 	GPIO.output(PIN_LED, GPIO.HIGH)
 
+	GPIO.add_event_detect(PIN_BUTTON, GPIO.FALLING, callback=onButtonDown, bouncetime=200)
+	GPIO.add_event_detect(PIN_BUTTON, GPIO.RISING, callback=onButtonDown, bouncetime=200)
+
 	while True:
-		# Wait for input to fall to low value
 		channel = GPIO.wait_for_edge(PIN_BUTTON, GPIO.FALLING)
-		timestampDown = datetime.datetime.now()
-
+		print("down")
 		channel = GPIO.wait_for_edge(PIN_BUTTON, GPIO.RISING)
-		timestampUp = datetime.datetime.now()
+		print("up")
 
-		timePressed = timestampUp - timestampDown
-		if (timePressed.total_seconds() > 2.0):
-			#os.system("sudo shutdown -h now")
-
-			# Turn led off
-			GPIO.output(PIN_LED, GPIO.LOW)
-
-			break
+	# while True:
+	# 	# Wait for input to fall to low value
+	# 	channel = GPIO.wait_for_edge(PIN_BUTTON, GPIO.FALLING)
+	# 	timestampDown = datetime.datetime.now()
+	#
+	# 	channel = GPIO.wait_for_edge(PIN_BUTTON, GPIO.RISING)
+	# 	timestampUp = datetime.datetime.now()
+	#
+	# 	timePressed = timestampUp - timestampDown
+	# 	if (timePressed.total_seconds() > 2.0):
+	# 		#os.system("sudo shutdown -h now")
+	#
+	# 		# Turn led off
+	# 		GPIO.output(PIN_LED, GPIO.LOW)
+	#
+	# 		break
 except:
 	pass
 
