@@ -44,6 +44,8 @@ try:
 
 			# Turn led off
 			GPIO.output(PIN_LED, GPIO.LOW)
+
+			break
 except:
 	pass
 
