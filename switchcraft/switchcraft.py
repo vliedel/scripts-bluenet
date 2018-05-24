@@ -13,12 +13,13 @@ SAMPLE_TIME_US = 200
 ALGORITHM_NUM_BUFFERS = 3 # Number of buffers the algorithm needs in memory
 
 
-THRESHOLD_DIFFERENT = 1900 # Difference scores above this threshold are considered to be different
-THRESHOLD_SIMILAR = 1900   # Difference scores below this threshold are considered to be similar
+THRESHOLD_DIFFERENT = 200000 # Difference scores above this threshold are considered to be different
+THRESHOLD_SIMILAR = 200000   # Difference scores below this threshold are considered to be similar
+THRESHOLD_RATIO = 2
 PLOT = False
 PLOT_NONE_FOUND = False
 PLOT_DEBUG = False
-PLOT_SCORES = False
+PLOT_SCORES = True
 
 # -- deprecated --
 MIN_DIFF_PER_SAMPLE = 0 # So that lots of small differences don't add up to something above threshold
@@ -53,8 +54,8 @@ def main():
 		bufferList = [] # List of buffers in memory, that the algorithm can use for detection
 		allScoreTimestamps = []  # Timestamps to plot the scores at (list of lists, for each buffer a timestamp for each score triple)
 		allScores = [] # List of list of score triples (for each buffer the scores as returned by calcScores).
-		highestScores = [0] # List of highest min(score12, score23): [min(score12, score23), score12, score23, score13], where score12, score23 > score13
-		largestDiffScores = [0] # List of highest min(score12, score23) - score13: [min(score12, score23) - score13, score12, score23, score13], where score12, score23 > score13
+		highestScores = [0,0,0,0,0] # List of highest min(score12, score23): [min(score12, score23), score12, score23, score13, ratio], where score12, score23 > score13
+		largestDiffScores = [0,0,0,0,0] # List of highest min(score12, score23) - score13: [min(score12, score23) - score13, score12, score23, score13, ratio], where score12, score23 > score13
 		allBuffers = []
 		allTimestamps = []
 		timestamps = [] # List of raw timestamps of all buffers
@@ -73,6 +74,11 @@ def main():
 				uartNoise = True
 			elif ('samples' in entry):
 				buffer = entry['samples']
+
+				# Some data has 10bit ADC resolution
+				for k in range(0, len(buffer)):
+					buffer[k] *= 4
+
 				timestamp = entry['timestamp']
 				timestamps.append(timestamp)
 				timestampMs = timestamp * 1000.0 / RTC_CLOCK_FREQ
@@ -118,15 +124,19 @@ def main():
 					foundSwitch = False
 					for [score12, score23, score13] in scores:
 						# Check if switch was found
+						minDiffScore = min(score12, score23)
+						ratio = minDiffScore / score13
 						if (score12 > THRESHOLD_DIFFERENT and score23 > THRESHOLD_DIFFERENT and score13 < THRESHOLD_SIMILAR):
 							foundSwitch = True
+						if (score12 > THRESHOLD_DIFFERENT and score23 > THRESHOLD_DIFFERENT and ratio > THRESHOLD_RATIO):
+							foundSwitch = True
+
 						# Keep up the best scores
-						minDiffScore = min(score12, score23)
 						if (minDiffScore > score13):
 							if (highestScores[0] < minDiffScore):
-								highestScores = [minDiffScore, score12, score23, score13]
+								highestScores = [minDiffScore, score12, score23, score13, ratio]
 							if (largestDiffScores[0] < minDiffScore - score13):
-								largestDiffScores = [minDiffScore - score13, score12, score23, score13]
+								largestDiffScores = [minDiffScore - score13, score12, score23, score13, ratio]
 
 					if (foundSwitch):
 						foundSwitches.append(i)
@@ -190,6 +200,7 @@ def main():
 				ax2.plot(allScoreTimestamps, scoresMat[:,:,0], '<') # scores 12
 				ax2.plot(allScoreTimestamps, scoresMat[:,:,1], '>') # scores 23
 				ax2.plot(allScoreTimestamps, scoresMat[:,:,2], '^') # scores 13
+				ax2.plot(allScoreTimestamps, scoresMat[:,:,3], 'o') # ratio
 
 				ax2.plot([allTimestamps[0][0], allTimestamps[-1][-1]], [THRESHOLD_DIFFERENT, THRESHOLD_DIFFERENT], '-k')
 				ax2.plot([allTimestamps[0][0], allTimestamps[-1][-1]], [THRESHOLD_SIMILAR, THRESHOLD_SIMILAR], '--k')
@@ -222,19 +233,20 @@ def main():
 			filesWithSwitch += 1
 		else:
 			filesWithoutSwitch += 1
-			print("best scores", highestScores[1:4], '\n           ', largestDiffScores[1:4])
+			print("best scores", highestScores[1:], '\n           ', largestDiffScores[1:])
 		plt.show()
 		# allFilesBestScores.append([highestScores[1:4], largestDiffScores[1:4]])
-		allFilesBestScores.append(highestScores[1:4])
-		allFilesBestScores.append(largestDiffScores[1:4])
+		allFilesBestScores.append(highestScores[1:])
+		allFilesBestScores.append(largestDiffScores[1:])
 
 	print("with switch:", filesWithSwitch)
 	print("without switch:", filesWithoutSwitch)
 	bestScoresMat = np.array(allFilesBestScores)
 	if PLOT_SCORES and len(fileNames) > 1:
-		plt.plot(bestScoresMat[:,0], '<')
-		plt.plot(bestScoresMat[:,1], '>')
-		plt.plot(bestScoresMat[:,2], '^')
+		plt.plot(bestScoresMat[:,0], '<') # scores 12
+		plt.plot(bestScoresMat[:,1], '>') # scores 23
+		plt.plot(bestScoresMat[:,2], '^') # scores 13
+		plt.plot(bestScoresMat[:,3], 'o') # ratio
 		plt.plot([0,len(bestScoresMat)], [THRESHOLD_DIFFERENT, THRESHOLD_DIFFERENT], '-k')
 		plt.plot([0,len(bestScoresMat)], [THRESHOLD_SIMILAR, THRESHOLD_SIMILAR], '--k')
 		plt.show()
