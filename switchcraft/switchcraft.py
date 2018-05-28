@@ -75,9 +75,9 @@ def main():
 			elif ('samples' in entry):
 				buffer = entry['samples']
 
-				# Some data has 10bit ADC resolution
-				for k in range(0, len(buffer)):
-					buffer[k] *= 4
+				# # Some data has 10bit ADC resolution
+				# for k in range(0, len(buffer)):
+				# 	buffer[k] *= 4
 
 				timestamp = entry['timestamp']
 				timestamps.append(timestamp)
@@ -200,7 +200,7 @@ def main():
 				ax2.plot(allScoreTimestamps, scoresMat[:,:,0], '<') # scores 12
 				ax2.plot(allScoreTimestamps, scoresMat[:,:,1], '>') # scores 23
 				ax2.plot(allScoreTimestamps, scoresMat[:,:,2], '^') # scores 13
-				ax2.plot(allScoreTimestamps, scoresMat[:,:,3], 'o') # ratio
+				# ax2.plot(allScoreTimestamps, scoresMat[:,:,3], 'o') # ratio
 
 				ax2.plot([allTimestamps[0][0], allTimestamps[-1][-1]], [THRESHOLD_DIFFERENT, THRESHOLD_DIFFERENT], '-k')
 				ax2.plot([allTimestamps[0][0], allTimestamps[-1][-1]], [THRESHOLD_SIMILAR, THRESHOLD_SIMILAR], '--k')
@@ -222,7 +222,7 @@ def main():
 				if len(foundSwitches) <= THRESHOLD_DIFFERENT:
 					ax1.plot(np.transpose(allTimestamps), np.transpose(allBuffers), '-o')
 
-			if PLOT_DEBUG or (PLOT_NONE_FOUND and len(foundSwitches)) == 0 or PLOT_SCORES:
+			if PLOT_DEBUG or (PLOT_NONE_FOUND and len(foundSwitches) == 0):
 				ax1.plot(restartTimestampsMs, [0]*len(restartTimestampsMs), 'x')
 				ax1.plot(uartNoiseTimestampsMs, [-100]*len(uartNoiseTimestampsMs), 'x')
 
