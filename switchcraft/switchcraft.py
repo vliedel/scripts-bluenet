@@ -75,9 +75,10 @@ def main():
 			elif ('samples' in entry):
 				buffer = entry['samples']
 
-				# # Some data has 10bit ADC resolution
-				# for k in range(0, len(buffer)):
-				# 	buffer[k] *= 4
+				# Some data was recorded with 10bit ADC resolution, instead of 12bit
+				if (max(buffer) < 1024):
+					for k in range(0, len(buffer)):
+						buffer[k] *= 4
 
 				timestamp = entry['timestamp']
 				timestamps.append(timestamp)
