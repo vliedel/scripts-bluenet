@@ -8,20 +8,27 @@ GRID_INTERVAL_US   = 10080
 DIMMER_INTERVAL_US = 10000
 
 
+# Chance that a zero crossing interrupt is skipped.
 ZERO_CROSSING_MISSING_CHANCE = 0.1
+
+# Change that there's a delay of the zero crossing interrupt.
 ZERO_CROSSING_DELAY_CHANCE = 1.0
+
+# How much the zero crossing interrupt is delayed.
 ZERO_CROSSING_DELAY_PARETO_ALPHA = 3
 ZERO_CROSSING_DELAY_PARETO_MULTIPLIER = 100
 # ZERO_CROSSING_DELAY_PARETO_MULTIPLIER = 0
+
+# How much time to simulate.
 SIM_TIME_SECONDS = 10
 
-ZERO_CROSSINGS = int(2 * SIM_TIME_SECONDS * 1000 * 1000 / GRID_INTERVAL_US)
-
-
+# Whether to round intermediate calculations.
 def maybeRound(val):
     return int(val)
     # return val
 
+
+# This function is what happens in the firmware.
 errIntegral = 0
 zeroCrossingCounter = 0
 def onZeroCrossing(dimmerTimerCapture, dimmerInterval):
@@ -59,11 +66,14 @@ def onZeroCrossing(dimmerTimerCapture, dimmerInterval):
         return newInterval
     return dimmerInterval
 
+
+
+
 def main():
-    print(ZERO_CROSSINGS)
     t = 0
     interruptTimestamps = []
-    for i in range(0, ZERO_CROSSINGS):
+    num_zero_crossing = int(2 * SIM_TIME_SECONDS * 1000 * 1000 / GRID_INTERVAL_US)
+    for i in range(0, num_zero_crossing):
         timestamp = t
         if random.random() < ZERO_CROSSING_MISSING_CHANCE:
             t += GRID_INTERVAL_US
