@@ -21,7 +21,7 @@ ZERO_CROSSING_DELAY_PARETO_MULTIPLIER = 100
 ZERO_CROSSING_DELAY_MAX_US = 5000 # Delay will never be more than this.
 
 # How much time to simulate.
-SIM_TIME_SECONDS = 10
+SIM_TIME_SECONDS = 60
 
 # Whether to round intermediate calculations.
 def maybeRound(val):
@@ -56,37 +56,39 @@ def onZeroCrossing(dimmerTimerCapture, dimmerMaxTicks):
     global zeroCrossingCounter
     zeroCrossingCounter += 1
     if (zeroCrossingCounter % DIMMER_NUM_CROSSINGS_BEFORE_CONTROL == 0):
-        avgSlope = errHist[DIMMER_NUM_CROSSINGS_BEFORE_CONTROL-1] - errHist[0]
-        if (avgSlope > maybeRound(DIMMER_TIMER_MAX_TICKS / 2)):
-            avgSlope -= DIMMER_TIMER_MAX_TICKS
-        if (avgSlope < maybeRound(-DIMMER_TIMER_MAX_TICKS / 2)):
-            avgSlope += DIMMER_TIMER_MAX_TICKS
+        # avgSlope = (errHist[-1] - errHist[0]) / (len(errHist) - 1)
+        # avgSlope = (avgSlope + DIMMER_TIMER_MAX_TICKS / 2) % DIMMER_TIMER_MAX_TICKS - DIMMER_TIMER_MAX_TICKS / 2
+        # filteredAvgSlope = avgSlope
 
-        errSlopes = []
-        avgDeviationFromAvg = 0
-        for i in range(1, DIMMER_NUM_CROSSINGS_BEFORE_CONTROL):
-            slope = errHist[i] - errHist[i-1]
-            if (slope > maybeRound(DIMMER_TIMER_MAX_TICKS / 2)):
-                slope -= DIMMER_TIMER_MAX_TICKS
-            if (slope < maybeRound(-DIMMER_TIMER_MAX_TICKS / 2)):
-                slope += DIMMER_TIMER_MAX_TICKS
-            errSlopes.append(slope)
-            avgDeviationFromAvg += abs(slope - avgSlope)
-        avgDeviationFromAvg /= (DIMMER_NUM_CROSSINGS_BEFORE_CONTROL-1)
+        # errSlopes = []
+        # for i in range(1, DIMMER_NUM_CROSSINGS_BEFORE_CONTROL):
+        #     slope = (errHist[i] - errHist[i-1])
+        #     slope = (slope + DIMMER_TIMER_MAX_TICKS / 2) % DIMMER_TIMER_MAX_TICKS - DIMMER_TIMER_MAX_TICKS / 2
+        #     errSlopes.append(slope)
+        # medianSlope = np.median(np.array(errSlopes))
+        # filteredAvgSlope = medianSlope
 
-        filteredAvgSlope = 0
-        for i in range(0, DIMMER_NUM_CROSSINGS_BEFORE_CONTROL-1):
-            slope = errSlopes[i]
-            if (abs(slope - avgSlope) < 2 * avgDeviationFromAvg):
-                filteredAvgSlope += slope
-        filteredAvgSlope /= (DIMMER_NUM_CROSSINGS_BEFORE_CONTROL-1)
+        medianErr = np.median(errHist)
+        avgDeviation = 0
+        for i in range(0, len(errHist)):
+            deviation = abs(errHist[i] - medianErr)
+            avgDeviation += deviation
+        avgDeviation /= len(errHist)
+        for i in range(0, len(errHist)):
+            deviation = abs(errHist[i] - medianErr)
+            if (deviation > 2 * avgDeviation):
+                errHist[i] = medianErr
+        avgSlope = (errHist[-1] - errHist[0]) / (len(errHist) - 1)
+        avgSlope = (avgSlope + DIMMER_TIMER_MAX_TICKS / 2) % DIMMER_TIMER_MAX_TICKS - DIMMER_TIMER_MAX_TICKS / 2
+        filteredAvgSlope = avgSlope
+
 
         errHist = []
         global errSlopesPlot
         errSlopesPlot.append(filteredAvgSlope)
 
         global dimmerSynchedIntervalMaxTicks
-        dimmerSynchedIntervalMaxTicks += maybeRound(filteredAvgSlope / DIMMER_TIMER_MAX_TICKS * 4000)
+        dimmerSynchedIntervalMaxTicks += maybeRound(filteredAvgSlope / DIMMER_TIMER_MAX_TICKS * 100)
 
         integralAbsMax = DIMMER_TIMER_MAX_TICKS * 1000
         if (errIntegral > integralAbsMax):
@@ -96,7 +98,7 @@ def onZeroCrossing(dimmerTimerCapture, dimmerMaxTicks):
 
         delta = 0
         deltaP = maybeRound(err / DIMMER_TIMER_MAX_TICKS * 1000)
-        deltaI = maybeRound(errIntegral / DIMMER_TIMER_MAX_TICKS * 2)
+        deltaI = maybeRound(errIntegral / DIMMER_TIMER_MAX_TICKS * 1)
         delta = deltaP + deltaI
         # delta = deltaP
 
