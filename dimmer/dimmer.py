@@ -21,7 +21,7 @@ ZERO_CROSSING_DELAY_PARETO_MULTIPLIER = 100
 ZERO_CROSSING_DELAY_MAX_US = 5000 # Delay will never be more than this.
 
 # How much time to simulate.
-SIM_TIME_SECONDS = 60
+SIM_TIME_SECONDS = 10
 
 # Whether to round intermediate calculations.
 def maybeRound(val):
@@ -30,32 +30,75 @@ def maybeRound(val):
 
 DIMMER_TIMER_MAX_TICKS = 4 * DIMMER_INTERVAL_US
 
+DIMMER_NUM_CROSSINGS_BEFORE_CONTROL = 10
+
 # This function is what happens in the firmware.
 errIntegral = 0
 zeroCrossingCounter = 0
+errHist = []
+errSlopesPlot = [] # For plotting
+
+dimmerSynchedIntervalMaxTicks = DIMMER_TIMER_MAX_TICKS
 def onZeroCrossing(dimmerTimerCapture, dimmerMaxTicks):
     target = 0
-    err = target - maybeRound(dimmerTimerCapture)
+    err = maybeRound(dimmerTimerCapture) - target
     if (err > maybeRound(DIMMER_TIMER_MAX_TICKS/2)):
         err -= DIMMER_TIMER_MAX_TICKS
     if (err < maybeRound(-DIMMER_TIMER_MAX_TICKS/2)):
         err += DIMMER_TIMER_MAX_TICKS
 
+    global errHist
+    errHist.append(err)
+
     global errIntegral
-    errIntegral += -err
-    integralAbsMax = DIMMER_TIMER_MAX_TICKS * 1000
-    if (errIntegral > integralAbsMax):
-        errIntegral = integralAbsMax
-    if (errIntegral < -integralAbsMax):
-        errIntegral = -integralAbsMax
+    errIntegral += err
 
     global zeroCrossingCounter
     zeroCrossingCounter += 1
-    if (zeroCrossingCounter % 10 == 0):
+    if (zeroCrossingCounter % DIMMER_NUM_CROSSINGS_BEFORE_CONTROL == 0):
+        avgSlope = errHist[DIMMER_NUM_CROSSINGS_BEFORE_CONTROL-1] - errHist[0]
+        if (avgSlope > maybeRound(DIMMER_TIMER_MAX_TICKS / 2)):
+            avgSlope -= DIMMER_TIMER_MAX_TICKS
+        if (avgSlope < maybeRound(-DIMMER_TIMER_MAX_TICKS / 2)):
+            avgSlope += DIMMER_TIMER_MAX_TICKS
+
+        errSlopes = []
+        avgDeviationFromAvg = 0
+        for i in range(1, DIMMER_NUM_CROSSINGS_BEFORE_CONTROL):
+            slope = errHist[i] - errHist[i-1]
+            if (slope > maybeRound(DIMMER_TIMER_MAX_TICKS / 2)):
+                slope -= DIMMER_TIMER_MAX_TICKS
+            if (slope < maybeRound(-DIMMER_TIMER_MAX_TICKS / 2)):
+                slope += DIMMER_TIMER_MAX_TICKS
+            errSlopes.append(slope)
+            avgDeviationFromAvg += abs(slope - avgSlope)
+        avgDeviationFromAvg /= (DIMMER_NUM_CROSSINGS_BEFORE_CONTROL-1)
+
+        filteredAvgSlope = 0
+        for i in range(0, DIMMER_NUM_CROSSINGS_BEFORE_CONTROL-1):
+            slope = errSlopes[i]
+            if (abs(slope - avgSlope) < 2 * avgDeviationFromAvg):
+                filteredAvgSlope += slope
+        filteredAvgSlope /= (DIMMER_NUM_CROSSINGS_BEFORE_CONTROL-1)
+
+        errHist = []
+        global errSlopesPlot
+        errSlopesPlot.append(filteredAvgSlope)
+
+        global dimmerSynchedIntervalMaxTicks
+        dimmerSynchedIntervalMaxTicks += maybeRound(filteredAvgSlope / DIMMER_TIMER_MAX_TICKS * 4000)
+
+        integralAbsMax = DIMMER_TIMER_MAX_TICKS * 1000
+        if (errIntegral > integralAbsMax):
+            errIntegral = integralAbsMax
+        if (errIntegral < -integralAbsMax):
+            errIntegral = -integralAbsMax
+
         delta = 0
-        deltaP = maybeRound(-err / maybeRound(DIMMER_TIMER_MAX_TICKS / 400))
-        deltaI = maybeRound(errIntegral / 1000 / maybeRound(DIMMER_TIMER_MAX_TICKS / 400))
+        deltaP = maybeRound(err / DIMMER_TIMER_MAX_TICKS * 1000)
+        deltaI = maybeRound(errIntegral / DIMMER_TIMER_MAX_TICKS * 2)
         delta = deltaP + deltaI
+        # delta = deltaP
 
         limitDelta = maybeRound(DIMMER_TIMER_MAX_TICKS / 120)
         if (delta > limitDelta):
@@ -63,8 +106,9 @@ def onZeroCrossing(dimmerTimerCapture, dimmerMaxTicks):
         if (delta < -limitDelta):
             delta = -limitDelta
 
-        newDimmerMaxTicks = int(DIMMER_TIMER_MAX_TICKS + delta)
-        print("capture=", dimmerTimerCapture, " err=", err, " errIntegral=", errIntegral, " deltaP=", deltaP, " deltaI=", deltaI, " delta=", delta, " newDimmerMaxTicks=", newDimmerMaxTicks)
+        # newDimmerMaxTicks = int(DIMMER_TIMER_MAX_TICKS + delta)
+        newDimmerMaxTicks = int(dimmerSynchedIntervalMaxTicks + delta)
+        print("capture=", dimmerTimerCapture, " err=", err, " errSlope=", filteredAvgSlope, "errIntegral=", errIntegral, " deltaP=", deltaP, " deltaI=", deltaI, " delta=", delta, " synchedMaxTicks=", dimmerSynchedIntervalMaxTicks,  "newMaxTicks=", newDimmerMaxTicks)
         return newDimmerMaxTicks
     return dimmerMaxTicks
 
@@ -75,8 +119,8 @@ def main():
     t = 0
     interruptTimestamps = []
     interruptDelays = []
-    num_zero_crossing = int(2 * SIM_TIME_SECONDS * 1000 * 1000 / GRID_INTERVAL_US)
-    for i in range(0, num_zero_crossing):
+    numZeroCrossing = int(SIM_TIME_SECONDS * 1000 * 1000 / GRID_INTERVAL_US)
+    for i in range(0, numZeroCrossing):
         delay = 0
         if random.random() < ZERO_CROSSING_MISSING_CHANCE:
             t += GRID_INTERVAL_US
@@ -89,6 +133,7 @@ def main():
         timestamp = t + delay
         interruptTimestamps.append(timestamp)
         t = t + GRID_INTERVAL_US
+
     plt.figure()
     axDelay = plt.gca()
     axDelay.set_title("Zero crossing interrupt delay")
@@ -118,20 +163,43 @@ def main():
         if (dimmerOffsets[i] > DIMMER_TIMER_MAX_TICKS/2):
             dimmerOffsets[i] -= DIMMER_TIMER_MAX_TICKS
 
+    numZeroCrossing = len(interruptTimestamps)
+    global errSlopesPlot
+    # errSlopesPlotX = [DIMMER_NUM_CROSSINGS_BEFORE_CONTROL * np.array(range(0, len(errSlopes))), DIMMER_NUM_CROSSINGS_BEFORE_CONTROL * np.array(range(1, len(errSlopes))) - 1]
+    errSlopesPlotX = []
+    errSlopesPlotY = []
+
+    for i in range(0, len(errSlopesPlot)):
+        x0 = i*DIMMER_NUM_CROSSINGS_BEFORE_CONTROL
+        # x1 = (i+1)*DIMMER_NUM_CROSSINGS_BEFORE_CONTROL - 1
+        x1 = (i + 1) * DIMMER_NUM_CROSSINGS_BEFORE_CONTROL
+        errSlopesPlotX.append([x0, x1])
+        errSlopesPlotY.append([dimmerOffsets[x0], dimmerOffsets[x0] + DIMMER_NUM_CROSSINGS_BEFORE_CONTROL * errSlopesPlot[i]])
+    errSlopesPlotX = np.array(errSlopesPlotX).transpose()
+    errSlopesPlotY = np.array(errSlopesPlotY).transpose()
 
     plt.figure()
     axOffset = plt.gca()
     axOffset.set_title('Zero crossing offset of dimmer')
     axOffset.set_ylabel("μs")
     axOffset.plot(dimmerOffsets, '-x')
+    axOffset.plot(errSlopesPlotX, errSlopesPlotY)
 
     plt.figure()
     axInterval = plt.gca()
     axInterval.set_title('Dimmer interval')
     axInterval.set_ylabel("μs")
     axInterval.plot(dimmerIntervals, "-x")
+
     # plt.plot(interruptTimestamps, dimmerTimerStartTimes, 'x')
     # plt.plot(np.array(interruptTimestamps) - np.array(dimmerTimerStartTimes), 'x')
+
+
+    plt.figure()
+    axInterval = plt.gca()
+    axInterval.set_title('Offset slope')
+    # axInterval.set_ylabel("μs")
+    axInterval.plot(errSlopesPlot, "-x")
 
     plt.show()
 
