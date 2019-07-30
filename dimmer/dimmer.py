@@ -31,9 +31,9 @@ def maybeRound(val):
 
 DIMMER_TIMER_MAX_TICKS = 4 * DIMMER_INTERVAL_US
 
-DIMMER_NUM_CROSSINGS_BEFORE_CONTROL = 10
+DIMMER_NUM_CROSSINGS_BEFORE_CONTROL = 9
 
-DIMMER_NUM_SAMPLES = 10
+DIMMER_NUM_SAMPLES_FOR_FREQ_SYNC = 10
 
 # This function is what happens in the firmware.
 errIntegral = 0
@@ -42,13 +42,21 @@ errHist = []
 errSlopeAvg = 0
 errSlopesPlot = [] # For plotting
 class State(Enum):
-    COLLECT_SAMPLES = 0
     SYNC_FREQUENCY = 1
     SYNC_START = 2
-state = State.COLLECT_SAMPLES
+nextState = State.SYNC_FREQUENCY
 
 dimmerSynchedIntervalMaxTicks = DIMMER_TIMER_MAX_TICKS
 def onZeroCrossing(dimmerTimerCapture, dimmerMaxTicks):
+    global dimmerSynchedIntervalMaxTicks
+    global state
+    global zeroCrossingCounter
+    global errIntegral
+    global errSlopesPlot
+    global errHist
+    global nextState
+
+    state = nextState
     target = 0
     err = maybeRound(dimmerTimerCapture) - target
     if (err > maybeRound(DIMMER_TIMER_MAX_TICKS/2)):
@@ -56,15 +64,10 @@ def onZeroCrossing(dimmerTimerCapture, dimmerMaxTicks):
     if (err < maybeRound(-DIMMER_TIMER_MAX_TICKS/2)):
         err += DIMMER_TIMER_MAX_TICKS
 
-    global errHist
-    errHist.append(err)
-
-    global errIntegral
-    errIntegral += err
-
-    global zeroCrossingCounter
-    zeroCrossingCounter += 1
-    if (zeroCrossingCounter % DIMMER_NUM_CROSSINGS_BEFORE_CONTROL == 0):
+    if (state == State.SYNC_FREQUENCY):
+        errHist.append(err)
+        if (len(errHist) < DIMMER_NUM_SAMPLES_FOR_FREQ_SYNC):
+            return dimmerMaxTicks
         # avgSlope = (errHist[-1] - errHist[0]) / (len(errHist) - 1)
         # avgSlope = (avgSlope + DIMMER_TIMER_MAX_TICKS / 2) % DIMMER_TIMER_MAX_TICKS - DIMMER_TIMER_MAX_TICKS / 2
         # filteredAvgSlope = avgSlope
@@ -92,8 +95,9 @@ def onZeroCrossing(dimmerTimerCapture, dimmerMaxTicks):
         # filteredAvgSlope = avgSlope
 
         # https://en.wikipedia.org/wiki/Theil%E2%80%93Sen_estimator
+        # Needs to calculate median of ((DIMMER_NUM_SAMPLES_FOR_FREQ_SYNC-1) * ((DIMMER_NUM_SAMPLES_FOR_FREQ_SYNC-1) + 1) / 2) values.
+        # For DIMMER_NUM_SAMPLES_FOR_FREQ_SYNC = 10, that is the median of 45 values.
         errSlopes = []
-
         for i in range(0, len(errHist)):
             for j in range(i+1, len(errHist)):
                 dy = (errHist[j] - errHist[i])
@@ -102,41 +106,69 @@ def onZeroCrossing(dimmerTimerCapture, dimmerMaxTicks):
                 errSlopes.append((slope))
         filteredAvgSlope = np.median(errSlopes)
 
+        # https://en.wikipedia.org/wiki/Repeated_median_regression
+        # This way we only need to calculate the median of (DIMMER_NUM_SAMPLES_FOR_FREQ_SYNC - 1) values, but have to do that DIMMER_NUM_SAMPLES_FOR_FREQ_SYNC times.
+        medianSlopes = []
+        for i in range(0, len(errHist)):
+            errSlopes = []
+            for j in range(0, len(errHist)):
+                if (i == j):
+                    continue
+                dy = (errHist[j] - errHist[i])
+                dy = (dy + DIMMER_TIMER_MAX_TICKS / 2) % DIMMER_TIMER_MAX_TICKS - DIMMER_TIMER_MAX_TICKS / 2
+                slope = dy / (j-i)
+                errSlopes.append((slope))
+            medianSlopes.append(np.median(errSlopes))
+        filteredAvgSlope = np.median(medianSlopes)
 
         errHist = []
-        global errSlopesPlot
         errSlopesPlot.append(filteredAvgSlope)
 
         # Every full cycle (~20ms), the err increases by slope.
         # So the interval (half cycle, ~10ms) should be increased by half the slope.
-        global dimmerSynchedIntervalMaxTicks
-        # dimmerSynchedIntervalMaxTicks += maybeRound(filteredAvgSlope / DIMMER_TIMER_MAX_TICKS * 1000)
         dimmerSynchedIntervalMaxTicks += maybeRound(filteredAvgSlope / 2)
 
-        integralAbsMax = DIMMER_TIMER_MAX_TICKS * 1000
-        if (errIntegral > integralAbsMax):
-            errIntegral = integralAbsMax
-        if (errIntegral < -integralAbsMax):
-            errIntegral = -integralAbsMax
-
-        delta = 0
-        deltaP = maybeRound(err / DIMMER_TIMER_MAX_TICKS * 1000)
-        deltaI = maybeRound(errIntegral / DIMMER_TIMER_MAX_TICKS * 1)
-        delta = deltaP + deltaI
-        # delta = deltaP
-
-        limitDelta = maybeRound(DIMMER_TIMER_MAX_TICKS / 120)
-        if (delta > limitDelta):
-            delta = limitDelta
-        if (delta < -limitDelta):
-            delta = -limitDelta
-
-        # newDimmerMaxTicks = int(DIMMER_TIMER_MAX_TICKS + delta)
-        # newDimmerMaxTicks = int(dimmerSynchedIntervalMaxTicks + delta)
         newDimmerMaxTicks = int(dimmerSynchedIntervalMaxTicks)
-        print("capture=", dimmerTimerCapture, " err=", err, " errSlope=", filteredAvgSlope, "errIntegral=", errIntegral, " deltaP=", deltaP, " deltaI=", deltaI, " delta=", delta, " synchedMaxTicks=", dimmerSynchedIntervalMaxTicks,  "newMaxTicks=", newDimmerMaxTicks)
+        print("capture=", dimmerTimerCapture, " err=", err, " errSlope=", filteredAvgSlope, " synchedMaxTicks=",
+              dimmerSynchedIntervalMaxTicks, "newMaxTicks=", newDimmerMaxTicks)
+        nextState = State.SYNC_START
         return newDimmerMaxTicks
         # return dimmerMaxTicks
+
+
+
+    if (state == State.SYNC_START):
+        errHist.append(err)
+        errIntegral += err
+        zeroCrossingCounter += 1
+        if (zeroCrossingCounter == DIMMER_NUM_CROSSINGS_BEFORE_CONTROL):
+            zeroCrossingCounter = 0
+            integralAbsMax = DIMMER_TIMER_MAX_TICKS * 1000
+            if (errIntegral > integralAbsMax):
+                errIntegral = integralAbsMax
+            if (errIntegral < -integralAbsMax):
+                errIntegral = -integralAbsMax
+
+            delta = 0
+            deltaP = maybeRound(np.median(errHist) / DIMMER_TIMER_MAX_TICKS * 200)
+            deltaI = maybeRound(errIntegral / DIMMER_NUM_CROSSINGS_BEFORE_CONTROL / DIMMER_TIMER_MAX_TICKS * 1)
+            # delta = deltaP + deltaI
+            delta = deltaP
+
+            limitDelta = maybeRound(DIMMER_TIMER_MAX_TICKS / 120)
+            if (delta > limitDelta):
+                delta = limitDelta
+            if (delta < -limitDelta):
+                delta = -limitDelta
+
+            # newDimmerMaxTicks = int(DIMMER_TIMER_MAX_TICKS + delta)
+            newDimmerMaxTicks = int(dimmerSynchedIntervalMaxTicks + delta)
+            # newDimmerMaxTicks = int(dimmerSynchedIntervalMaxTicks)
+            print("capture=", dimmerTimerCapture, " err=", err, "errIntegral=", errIntegral,
+                  " deltaP=", deltaP, " deltaI=", deltaI, " delta=", delta, " synchedMaxTicks=",
+                  dimmerSynchedIntervalMaxTicks, "newMaxTicks=", newDimmerMaxTicks)
+            return newDimmerMaxTicks
+            # return dimmerMaxTicks
     return dimmerMaxTicks
 
 
