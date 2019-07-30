@@ -3,6 +3,7 @@
 import random
 import matplotlib.pyplot as plt
 import numpy as np
+from enum import Enum
 
 GRID_INTERVAL_US   = 10080
 DIMMER_INTERVAL_US = 10000
@@ -32,11 +33,19 @@ DIMMER_TIMER_MAX_TICKS = 4 * DIMMER_INTERVAL_US
 
 DIMMER_NUM_CROSSINGS_BEFORE_CONTROL = 10
 
+DIMMER_NUM_SAMPLES = 10
+
 # This function is what happens in the firmware.
 errIntegral = 0
 zeroCrossingCounter = 0
 errHist = []
+errSlopeAvg = 0
 errSlopesPlot = [] # For plotting
+class State(Enum):
+    COLLECT_SAMPLES = 0
+    SYNC_FREQUENCY = 1
+    SYNC_START = 2
+state = State.COLLECT_SAMPLES
 
 dimmerSynchedIntervalMaxTicks = DIMMER_TIMER_MAX_TICKS
 def onZeroCrossing(dimmerTimerCapture, dimmerMaxTicks):
@@ -68,27 +77,41 @@ def onZeroCrossing(dimmerTimerCapture, dimmerMaxTicks):
         # medianSlope = np.median(np.array(errSlopes))
         # filteredAvgSlope = medianSlope
 
-        medianErr = np.median(errHist)
-        avgDeviation = 0
+        # medianErr = np.median(errHist)
+        # avgDeviation = 0
+        # for i in range(0, len(errHist)):
+        #     deviation = abs(errHist[i] - medianErr)
+        #     avgDeviation += deviation
+        # avgDeviation /= len(errHist)
+        # for i in range(0, len(errHist)):
+        #     deviation = abs(errHist[i] - medianErr)
+        #     if (deviation > 2 * avgDeviation):
+        #         errHist[i] = medianErr
+        # avgSlope = (errHist[-1] - errHist[0]) / (len(errHist) - 1)
+        # avgSlope = (avgSlope + DIMMER_TIMER_MAX_TICKS / 2) % DIMMER_TIMER_MAX_TICKS - DIMMER_TIMER_MAX_TICKS / 2
+        # filteredAvgSlope = avgSlope
+
+        # https://en.wikipedia.org/wiki/Theil%E2%80%93Sen_estimator
+        errSlopes = []
+
         for i in range(0, len(errHist)):
-            deviation = abs(errHist[i] - medianErr)
-            avgDeviation += deviation
-        avgDeviation /= len(errHist)
-        for i in range(0, len(errHist)):
-            deviation = abs(errHist[i] - medianErr)
-            if (deviation > 2 * avgDeviation):
-                errHist[i] = medianErr
-        avgSlope = (errHist[-1] - errHist[0]) / (len(errHist) - 1)
-        avgSlope = (avgSlope + DIMMER_TIMER_MAX_TICKS / 2) % DIMMER_TIMER_MAX_TICKS - DIMMER_TIMER_MAX_TICKS / 2
-        filteredAvgSlope = avgSlope
+            for j in range(i+1, len(errHist)):
+                dy = (errHist[j] - errHist[i])
+                dy = (dy + DIMMER_TIMER_MAX_TICKS / 2) % DIMMER_TIMER_MAX_TICKS - DIMMER_TIMER_MAX_TICKS / 2
+                slope = dy / (j-i)
+                errSlopes.append((slope))
+        filteredAvgSlope = np.median(errSlopes)
 
 
         errHist = []
         global errSlopesPlot
         errSlopesPlot.append(filteredAvgSlope)
 
+        # Every full cycle (~20ms), the err increases by slope.
+        # So the interval (half cycle, ~10ms) should be increased by half the slope.
         global dimmerSynchedIntervalMaxTicks
-        dimmerSynchedIntervalMaxTicks += maybeRound(filteredAvgSlope / DIMMER_TIMER_MAX_TICKS * 100)
+        # dimmerSynchedIntervalMaxTicks += maybeRound(filteredAvgSlope / DIMMER_TIMER_MAX_TICKS * 1000)
+        dimmerSynchedIntervalMaxTicks += maybeRound(filteredAvgSlope / 2)
 
         integralAbsMax = DIMMER_TIMER_MAX_TICKS * 1000
         if (errIntegral > integralAbsMax):
@@ -109,9 +132,11 @@ def onZeroCrossing(dimmerTimerCapture, dimmerMaxTicks):
             delta = -limitDelta
 
         # newDimmerMaxTicks = int(DIMMER_TIMER_MAX_TICKS + delta)
-        newDimmerMaxTicks = int(dimmerSynchedIntervalMaxTicks + delta)
+        # newDimmerMaxTicks = int(dimmerSynchedIntervalMaxTicks + delta)
+        newDimmerMaxTicks = int(dimmerSynchedIntervalMaxTicks)
         print("capture=", dimmerTimerCapture, " err=", err, " errSlope=", filteredAvgSlope, "errIntegral=", errIntegral, " deltaP=", deltaP, " deltaI=", deltaI, " delta=", delta, " synchedMaxTicks=", dimmerSynchedIntervalMaxTicks,  "newMaxTicks=", newDimmerMaxTicks)
         return newDimmerMaxTicks
+        # return dimmerMaxTicks
     return dimmerMaxTicks
 
 
@@ -124,10 +149,13 @@ def main():
     numZeroCrossing = int(SIM_TIME_SECONDS * 1000 * 1000 / GRID_INTERVAL_US)
     for i in range(0, numZeroCrossing):
         delay = 0
-        if random.random() < ZERO_CROSSING_MISSING_CHANCE:
+        if (i % 2 == 0):
             t += GRID_INTERVAL_US
             continue
-        if random.random() < ZERO_CROSSING_DELAY_CHANCE:
+        if (random.random() < ZERO_CROSSING_MISSING_CHANCE):
+            t += GRID_INTERVAL_US
+            continue
+        if (random.random() < ZERO_CROSSING_DELAY_CHANCE):
             delay = (random.paretovariate(ZERO_CROSSING_DELAY_PARETO_ALPHA) - 1) * ZERO_CROSSING_DELAY_PARETO_MULTIPLIER
             if (delay > ZERO_CROSSING_DELAY_MAX_US):
                 delay = ZERO_CROSSING_DELAY_MAX_US
