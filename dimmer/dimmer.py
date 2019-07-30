@@ -184,8 +184,8 @@ def onZeroCrossing(dimmerTimerCapture, dimmerMaxTicks):
             delta = 0
             deltaP = maybeRound(medianErr / DIMMER_TIMER_MAX_TICKS * 1000)
             deltaI = maybeRound(errIntegral / DIMMER_NUM_CROSSINGS_BEFORE_CONTROL / DIMMER_TIMER_MAX_TICKS * 2)
-            # delta = deltaP + deltaI
-            delta = deltaP
+            delta = deltaP + deltaI
+            # delta = deltaP
 
             limitDelta = maybeRound(DIMMER_TIMER_MAX_TICKS / 120)
             if (delta > limitDelta):
@@ -214,6 +214,7 @@ def onZeroCrossing(dimmerTimerCapture, dimmerMaxTicks):
 
 def main():
     t = 0
+    zeroCrossingTimestamps = []
     interruptTimestamps = []
     interruptDelays = []
     numZeroCrossing = int(SIM_TIME_SECONDS * 1000 * 1000 / GRID_INTERVAL_US)
@@ -231,10 +232,11 @@ def main():
                 delay = ZERO_CROSSING_DELAY_MAX_US
         interruptDelays.append(delay)
         timestamp = t + delay
+        zeroCrossingTimestamps.append(t)
         interruptTimestamps.append(timestamp)
         t = t + GRID_INTERVAL_US
 
-    plotTimestamp = np.array(interruptTimestamps) / 1000 / 1000
+    plotTimestamp = np.array(zeroCrossingTimestamps) / 1000 / 1000
 
     plt.figure()
     axDelay = plt.gca()
@@ -247,23 +249,26 @@ def main():
     dimmerTimerStartTimes = []
     dimmerTimerCaptures = []
     dimmerIntervals = []
-    for zeroCrossingInterruptTime in interruptTimestamps:
+    dimmerOffsets = []
+    for i in range(0, len(interruptTimestamps)):
+        zeroCrossingInterruptTime = interruptTimestamps[i]
         while ((dimmerTimerStart + dimmerInterval) < zeroCrossingInterruptTime):
             dimmerTimerStart += dimmerInterval
         dimmerTimerStartTimes.append(dimmerTimerStart)
         dimmerTimerCapture = 4*(zeroCrossingInterruptTime - dimmerTimerStart)
+        if (dimmerTimerCapture > DIMMER_TIMER_MAX_TICKS/2):
+            dimmerTimerCapture -= DIMMER_TIMER_MAX_TICKS
         dimmerTimerCaptures.append(dimmerTimerCapture)
         dimmerIntervals.append(dimmerInterval)
+
+        dimmerTimerOffset = zeroCrossingTimestamps[i] - dimmerTimerStart
+        if (dimmerTimerOffset > GRID_INTERVAL_US/2):
+            dimmerTimerOffset -= GRID_INTERVAL_US
+        dimmerOffsets.append(dimmerTimerOffset)
 
         # Control action here
         dimmerInterval = onZeroCrossing(dimmerTimerCapture, 4 * dimmerInterval) / 4
 
-
-    dimmerOffsets = np.array(dimmerTimerCaptures)
-    # dimmerOffsets = np.array(interruptTimestamps) - np.array(dimmerTimerStartTimes)
-    for i in range(0, len(dimmerOffsets)):
-        if (dimmerOffsets[i] > DIMMER_TIMER_MAX_TICKS/2):
-            dimmerOffsets[i] -= DIMMER_TIMER_MAX_TICKS
 
     numZeroCrossing = len(interruptTimestamps)
     global errSlopesPlot
@@ -273,35 +278,33 @@ def main():
 
     for i in range(0, len(errSlopesPlot)):
         x0 = i*DIMMER_NUM_CROSSINGS_BEFORE_CONTROL
-        # x1 = (i+1)*DIMMER_NUM_CROSSINGS_BEFORE_CONTROL - 1
         x1 = (i + 1) * DIMMER_NUM_CROSSINGS_BEFORE_CONTROL
         errSlopesPlotX.append([plotTimestamp[x0], plotTimestamp[x1]])
-        errSlopesPlotY.append([dimmerOffsets[x0], dimmerOffsets[x0] + DIMMER_NUM_CROSSINGS_BEFORE_CONTROL * errSlopesPlot[i]])
+        errSlopesPlotY.append([dimmerTimerCaptures[x0], dimmerTimerCaptures[x0] + DIMMER_NUM_CROSSINGS_BEFORE_CONTROL * errSlopesPlot[i]])
     errSlopesPlotX = np.array(errSlopesPlotX).transpose()
     errSlopesPlotY = np.array(errSlopesPlotY).transpose()
 
     plt.figure()
+    axCapture = plt.gca()
+    axCapture.set_title('Timer value of dimmer at zero crossing interrupt')
+    axCapture.set_ylabel("ticks")
+    axCapture.set_xlabel("time (s)")
+    axCapture.plot(plotTimestamp, dimmerTimerCaptures, '-')
+    axCapture.plot(errSlopesPlotX, errSlopesPlotY)
+
+    plt.figure()
     axOffset = plt.gca()
-    axOffset.set_title('Zero crossing offset of dimmer')
-    axOffset.set_ylabel("μs")
-    axOffset.plot(plotTimestamp, dimmerOffsets, '-x')
-    axOffset.plot(errSlopesPlotX, errSlopesPlotY)
+    axOffset.set_title('Offset of dimmer interval start to zero crossing')
+    axOffset.set_ylabel("offset (μs)")
+    axOffset.set_xlabel("time (s)")
+    axOffset.plot(plotTimestamp, dimmerOffsets, '-')
 
     plt.figure()
     axInterval = plt.gca()
     axInterval.set_title('Dimmer interval')
     axInterval.set_ylabel("μs")
-    axInterval.plot(plotTimestamp, dimmerIntervals, "-x")
-
-    # plt.plot(interruptTimestamps, dimmerTimerStartTimes, 'x')
-    # plt.plot(np.array(interruptTimestamps) - np.array(dimmerTimerStartTimes), 'x')
-
-
-    plt.figure()
-    axInterval = plt.gca()
-    axInterval.set_title('Offset slope')
-    # axInterval.set_ylabel("μs")
-    axInterval.plot(errSlopesPlot, "-x")
+    axInterval.set_xlabel("time (s)")
+    axInterval.plot(plotTimestamp, dimmerIntervals, "-")
 
     plt.show()
 
