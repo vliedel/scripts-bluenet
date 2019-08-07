@@ -30,6 +30,10 @@ with open(sys.argv[1], 'r') as file:
 TICK_ERROR_REGEX_STRING = ".*ticks=([0-9]+) err=([-]*[0-9]+)"
 tickErrorPattern = re.compile(TICK_ERROR_REGEX_STRING)
 
+# Reboot regex, just any string that happens only once on boot.
+REBOOT_REGEX_STRING = ".*startWritesToFlash.*"
+rebootPattern = re.compile(REBOOT_REGEX_STRING)
+
 # Store necessary data in lists
 ticks = []
 err = []
@@ -40,6 +44,10 @@ for s in data:
     if matchObj:
         ticks.append(int(matchObj.group(1)))
         err.append(int(matchObj.group(2)))
+    matchObj = rebootPattern.match(s)
+    if matchObj:
+        ticks.clear()
+        err.clear()
 
 # Currently against indices, can be changed to the actual timestamp values
 indices = list(range(0, len(ticks)))
