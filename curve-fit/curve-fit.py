@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import numpy as np
 from scipy.optimize import leastsq
 import pylab as plt
