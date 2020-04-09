@@ -12,14 +12,17 @@ f = 51.0
 amp = 3.0
 phase = 0.1
 
+truncate = False # True to truncate bottom half of the sine wave. This simulates a load that uses 1 side of the sine.
+
 t = np.linspace(0, M * 1.0 / f, N)
 
 data = amp * np.sin(f * 2*np.pi * t + phase) + mean
 
 # Cut of half of the sine.
-for i in range(0, N):
-    if (data[i] < mean):
-        data[i] = mean
+if truncate:
+    for i in range(0, N):
+       if (data[i] < mean):
+           data[i] = mean
 
 # Add noise
 data = data + 0.1 * np.random.randn(N)
