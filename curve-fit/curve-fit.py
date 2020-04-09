@@ -48,8 +48,8 @@ lsq = leastsq(optimize_func, [guess_amp, guess_freq, guess_phase, guess_mean], f
 lsq_amp, lsq_freq, lsq_phase, lsq_mean = lsq[0]
 
 print("number of function calls:", lsq[2]['nfev'])
-print("The function evaluated at the output:", lsq[2]['fvec'])
-print("  Len:", len(lsq[2]['fvec']))
+#print("The function evaluated at the output:", lsq[2]['fvec'])
+#print("  Len:", len(lsq[2]['fvec']))
 
 # recreate the fitted curve using the optimized parameters
 #fine_t = np.arange(0, max(t), 0.1)
