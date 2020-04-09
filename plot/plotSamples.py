@@ -1,5 +1,7 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
+#import matplotlib
+#matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import json
