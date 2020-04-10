@@ -16,7 +16,7 @@ truncate = False # True to truncate bottom half of the sine wave. This simulates
 outliers = True # True to add outliers to the data.
 
 K = 100 # number of data points per period
-M = 2.5 # Number of periods of data
+M = 4.5 # Number of periods of data
 
 mean = 1.0
 f = 51.0
@@ -151,6 +151,8 @@ num_mean = B[0]
 num_data = num_amp * np.sin(num_freq * 2*np.pi * t + num_phase) + num_mean
 
 
+
+
 #############################################
 # Show results
 #############################################
@@ -161,12 +163,12 @@ print("robust:  mean=", robust_mean, " frequency=", robust_freq, " amplitude=", 
 print("fft:     mean=", fft_mean, " frequency=", fft_freq, " amplitude=", fft_amp, " phase=", fft_phase)
 print("num:     mean=", num_mean, " frequency=", num_freq, " amplitude=", num_amp, " phase=", num_phase)
 
-plt.plot(t, truth_data, '-',  label='truth       f={:.3f} ϕ={:.3f} A={:.3f} μ={:.3f}'.format(f, amp, phase, mean))
+plt.plot(t, truth_data, '-',  label='truth       f={:.3f} A={:.3f} ϕ={:.3f} μ={:.3f}'.format(f, amp, phase, mean))
 plt.plot(t, data,       '.')
-plt.plot(t, guess_data, '-',  label='first guess f={:.3f} ϕ={:.3f} A={:.3f} μ={:.3f}'.format(guess_freq, guess_amp, guess_phase, guess_mean))
-plt.plot(t, lsq_data,   '-',  label='lsq         f={:.3f} ϕ={:.3f} A={:.3f} μ={:.3f}'.format(lsq_freq, lsq_amp, lsq_phase, lsq_mean))
-plt.plot(t, robust_data,':',  label='robust lsq  f={:.3f} ϕ={:.3f} A={:.3f} μ={:.3f}'.format(robust_freq, robust_amp, robust_phase, robust_mean))
-plt.plot(t, fft_data,   '-',  label='fft         f={:.3f} ϕ={:.3f} A={:.3f} μ={:.3f}'.format(fft_freq, fft_amp, fft_phase, fft_mean))
-plt.plot(t, num_data,   '--', label='given freq  f={:.3f} ϕ={:.3f} A={:.3f} μ={:.3f}'.format(num_freq, num_amp, num_phase, num_mean))
+plt.plot(t, guess_data, '-',  label='first guess f={:.3f} A={:.3f} ϕ={:.3f} μ={:.3f}'.format(guess_freq, guess_amp, guess_phase, guess_mean))
+plt.plot(t, lsq_data,   '-',  label='lsq         f={:.3f} A={:.3f} ϕ={:.3f} μ={:.3f}'.format(lsq_freq, lsq_amp, lsq_phase, lsq_mean))
+plt.plot(t, robust_data,':',  label='robust lsq  f={:.3f} A={:.3f} ϕ={:.3f} μ={:.3f}'.format(robust_freq, robust_amp, robust_phase, robust_mean))
+plt.plot(t, fft_data,   '-',  label='fft         f={:.3f} A={:.3f} ϕ={:.3f} μ={:.3f}'.format(fft_freq, fft_amp, fft_phase, fft_mean))
+plt.plot(t, num_data,   '--', label='given freq  f={:.3f} A={:.3f} ϕ={:.3f} μ={:.3f}'.format(num_freq, num_amp, num_phase, num_mean))
 plt.legend(prop={})
 plt.show()
