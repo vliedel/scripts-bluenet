@@ -1,22 +1,43 @@
 #!/usr/bin/env python3
 
 import numpy as np
-from scipy.optimize import leastsq
-import pylab as plt
+from scipy.optimize import *
+#import pylab as plt
 
-N = 250 # number of data points
-M = 2.5 # Number of periods
+from matplotlib import rcParams
+rcParams['font.family'] = 'monospace'
+import matplotlib.pyplot as plt
+
+##########
+# Options
+##########
+
+truncate = False # True to truncate bottom half of the sine wave. This simulates a load that uses 1 side of the sine.
+outliers = True # True to add outliers to the data.
+
+K = 100 # number of data points per period
+M = 2.5 # Number of periods of data
 
 mean = 1.0
 f = 51.0
 amp = 3.0
 phase = 0.1
 
-truncate = False # True to truncate bottom half of the sine wave. This simulates a load that uses 1 side of the sine.
+
+guess_phase = 0.0
+guess_freq = 50.0
+guess_amp = 1.0
+
+####################
+# Prepare test data
+####################
+
+N = int(K * M) # number of data points
 
 t = np.linspace(0, M * 1.0 / f, N)
 
 data = amp * np.sin(f * 2*np.pi * t + phase) + mean
+truth_data = data
 
 # Cut of half of the sine.
 if truncate:
@@ -25,36 +46,55 @@ if truncate:
            data[i] = mean
 
 # Add noise
-data = data + 0.1 * np.random.randn(N)
+noise_amp = amp / 50
+noise = noise_amp * np.random.randn(N)
 
+if outliers:
+    outlier_amp = amp
+    numOutliers = int(N / 20)
+    #numOutliers = 1
+    indices = np.random.randint(0, t.size, numOutliers)
+    #noise[indices] = outlier_amp * np.random.randn(numOutliers)
+    noise[indices] = outlier_amp * np.abs(np.random.randn(numOutliers))
+
+data = data + noise
+
+# Initial guess
 guess_mean = np.mean(data)
-guess_phase = 0.0
-guess_freq = 50.0
-guess_amp = 1.0
-#guess_amp = 3 * np.std(data) / (2**0.5) / (2**0.5)
+guess_data = guess_amp * np.sin(guess_freq * 2 * np.pi * t + guess_phase) + guess_mean
 
-# we'll use this to plot our first estimate. This might already be good enough for you
-data_first_guess = guess_amp * np.sin(guess_freq * 2*np.pi * t + guess_phase) + guess_mean
 
 
 ################################################
 # Using LSQ for frequency (iterative)
 ################################################
 
-# Define the function to optimize, in this case, we want to minimize the difference
-# between the actual data and our "guessed" parameters
 optimize_func = lambda x: x[0] * np.sin(x[1] * 2*np.pi * t + x[2]) + x[3] - data
-lsq = leastsq(optimize_func, [guess_amp, guess_freq, guess_phase, guess_mean], full_output=1)
-lsq_amp, lsq_freq, lsq_phase, lsq_mean = lsq[0]
+lsq = least_squares(optimize_func, [guess_amp, guess_freq, guess_phase, guess_mean], method='lm', loss='linear')
 
-print("number of function calls:", lsq[2]['nfev'])
-#print("The function evaluated at the output:", lsq[2]['fvec'])
-#print("  Len:", len(lsq[2]['fvec']))
+lsq_amp, lsq_freq, lsq_phase, lsq_mean = lsq.x
 
-# recreate the fitted curve using the optimized parameters
-#fine_t = np.arange(0, max(t), 0.1)
-#data_fit = est_amp * np.sin(est_freq * fine_t + est_phase) + est_mean
-data_lsq = lsq_amp * np.sin(lsq_freq * 2*np.pi * t + lsq_phase) + lsq_mean
+print("Number of function evaluations:", lsq.nfev)
+print("Number of Jacobian evaluations:", lsq.njev)
+
+lsq_data = lsq_amp * np.sin(lsq_freq * 2 * np.pi * t + lsq_phase) + lsq_mean
+
+
+
+################################################
+# Using robust LSQ for frequency (iterative)
+################################################
+
+optimize_func = lambda x: x[0] * np.sin(x[1] * 2*np.pi * t + x[2]) + x[3] - data
+# Method 'lm' (Levenberg–Marquardt) only accepts linear loss function.
+robust = least_squares(optimize_func, [guess_amp, guess_freq, guess_phase, guess_mean], method='trf', loss='soft_l1')
+robust_amp, robust_freq, robust_phase, robust_mean = robust.x
+
+print("Number of function evaluations:", robust.nfev)
+print("Number of Jacobian evaluations:", robust.njev)
+
+robust_data = robust_amp * np.sin(robust_freq * 2*np.pi * t + robust_phase) + robust_mean
+
 
 
 ################################################
@@ -66,15 +106,10 @@ print("fft freq bins:", fft_freq_bins)
 fft = abs(np.fft.fft(data))
 fft_freq = abs(fft_freq_bins[np.argmax(fft[1:]) + 1]) # excluding the zero frequency
 
-
-
-# Define the function to optimize, in this case, we want to minimize the difference
-# between the actual data and our "guessed" parameters
 optimize_func = lambda x: x[0] * np.sin(fft_freq * 2*np.pi * t + x[1]) + x[2] - data
 fft_amp, fft_phase, fft_mean = leastsq(optimize_func, [guess_amp, guess_phase, guess_mean])[0]
 
-# recreate the fitted curve using the optimized parameters
-data_fft = fft_amp * np.sin(fft_freq * 2*np.pi * t + fft_phase) + fft_mean
+fft_data = fft_amp * np.sin(fft_freq * 2 * np.pi * t + fft_phase) + fft_mean
 
 
 
@@ -120,16 +155,18 @@ num_data = num_amp * np.sin(num_freq * 2*np.pi * t + num_phase) + num_mean
 # Show results
 #############################################
 
-print("input: mean=", mean, " frequency=", f, " amplitude=", amp, " phase=", phase)
-print("lsq:   mean=", lsq_mean, " frequency=", lsq_freq, " amplitude=", lsq_amp, " phase=", lsq_phase)
-print("fft:   mean=", fft_mean, " frequency=", fft_freq, " amplitude=", fft_amp, " phase=", fft_phase)
-print("num:   mean=", num_mean, " frequency=", num_freq, " amplitude=", num_amp, " phase=", num_phase)
+print("input:   mean=", mean, " frequency=", f, " amplitude=", amp, " phase=", phase)
+print("lsq:     mean=", lsq_mean, " frequency=", lsq_freq, " amplitude=", lsq_amp, " phase=", lsq_phase)
+print("robust:  mean=", robust_mean, " frequency=", robust_freq, " amplitude=", robust_amp, " phase=", robust_phase)
+print("fft:     mean=", fft_mean, " frequency=", fft_freq, " amplitude=", fft_amp, " phase=", fft_phase)
+print("num:     mean=", num_mean, " frequency=", num_freq, " amplitude=", num_amp, " phase=", num_phase)
 
-plt.plot(t, data, '.')
-plt.plot(t, data_first_guess, label='first guess')
-#plt.plot(fine_t, data_fit, label='after fitting')
-plt.plot(t, data_lsq, label='lsq')
-plt.plot(t, data_fft, label='fft')
-plt.plot(t, num_data, label='num')
-plt.legend()
+plt.plot(t, truth_data, '-',  label='truth       f={:.3f} ϕ={:.3f} A={:.3f} μ={:.3f}'.format(f, amp, phase, mean))
+plt.plot(t, data,       '.')
+plt.plot(t, guess_data, '-',  label='first guess f={:.3f} ϕ={:.3f} A={:.3f} μ={:.3f}'.format(guess_freq, guess_amp, guess_phase, guess_mean))
+plt.plot(t, lsq_data,   '-',  label='lsq         f={:.3f} ϕ={:.3f} A={:.3f} μ={:.3f}'.format(lsq_freq, lsq_amp, lsq_phase, lsq_mean))
+plt.plot(t, robust_data,':',  label='robust lsq  f={:.3f} ϕ={:.3f} A={:.3f} μ={:.3f}'.format(robust_freq, robust_amp, robust_phase, robust_mean))
+plt.plot(t, fft_data,   '-',  label='fft         f={:.3f} ϕ={:.3f} A={:.3f} μ={:.3f}'.format(fft_freq, fft_amp, fft_phase, fft_mean))
+plt.plot(t, num_data,   '--', label='given freq  f={:.3f} ϕ={:.3f} A={:.3f} μ={:.3f}'.format(num_freq, num_amp, num_phase, num_mean))
+plt.legend(prop={})
 plt.show()
