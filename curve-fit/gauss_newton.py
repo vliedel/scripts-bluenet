@@ -12,8 +12,11 @@ def step(beta, jacobian, residuals):
 #    print("residuals:", residuals)
     jacobianT = jacobian.transpose()
 
-    print("inverse of:", jacobianT.dot(jacobian))
-    nextBeta = beta - np.linalg.inv(jacobianT.dot(jacobian)).dot(jacobianT).dot(residuals)
+#    print("inverse of:", jacobianT.dot(jacobian))
+    try:
+        nextBeta = beta - np.linalg.inv(jacobianT.dot(jacobian)).dot(jacobianT).dot(residuals)
+    except np.linalg.LinAlgError:
+        nextBeta = beta
     return nextBeta
 
 def gauss_newton(func, beta0, jacobian, numSteps):
@@ -39,10 +42,10 @@ def gauss_newton(func, beta0, jacobian, numSteps):
     """
 
     beta = beta0
-    print("beta: ", beta)
+#    print("beta: ", beta)
     for i in range(0, numSteps):
         r = func(beta)
         j = np.array(jacobian(beta)).transpose()
         beta = step(beta, j, r)
-        print("beta: ", beta)
+#        print("beta: ", beta)
     return beta
