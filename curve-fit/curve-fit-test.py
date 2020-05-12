@@ -7,6 +7,7 @@ from scipy.optimize import *
 from matplotlib import rcParams
 rcParams['font.family'] = 'monospace'
 import matplotlib.pyplot as plt
+import gauss_newton
 
 ##########
 # Options
@@ -152,6 +153,26 @@ num_data = num_amp * np.sin(num_freq * 2*np.pi * t + num_phase) + num_mean
 
 
 
+################################################
+# Try own implementation
+################################################
+
+numSteps = 10
+optimize_func = lambda x: x[0] * np.sin(x[1] * t + x[2]) + x[3] - data
+jacobian = lambda x: [
+    np.sin(x[1] * t + x[2]),
+    x[0] * t * np.cos(x[1] * t + x[2]),
+    x[0] * np.cos(x[1] * t + x[2]),
+    np.ones(t.size)
+    ]
+gn = gauss_newton.gauss_newton(optimize_func, [guess_amp, guess_freq * 2*np.pi, guess_phase, guess_mean], jacobian, numSteps)
+
+gn_amp, gn_freq, gn_phase, gn_mean = gn
+gn_freq = gn_freq / (2*np.pi)
+
+gn_data = gn_amp * np.sin(gn_freq * 2 * np.pi * t + gn_phase) + gn_mean
+
+
 
 #############################################
 # Show results
@@ -162,6 +183,7 @@ print("lsq:     mean=", lsq_mean, " frequency=", lsq_freq, " amplitude=", lsq_am
 print("robust:  mean=", robust_mean, " frequency=", robust_freq, " amplitude=", robust_amp, " phase=", robust_phase)
 print("fft:     mean=", fft_mean, " frequency=", fft_freq, " amplitude=", fft_amp, " phase=", fft_phase)
 print("num:     mean=", num_mean, " frequency=", num_freq, " amplitude=", num_amp, " phase=", num_phase)
+print("gn:      mean=", gn_mean, " frequency=", gn_freq, " amplitude=", gn_amp, " phase=", gn_phase)
 
 plt.plot(t, truth_data, '-',  label='truth       f={:.3f} A={:.3f} ϕ={:.3f} μ={:.3f}'.format(f, amp, phase, mean))
 plt.plot(t, data,       '.')
@@ -170,5 +192,6 @@ plt.plot(t, lsq_data,   '-',  label='lsq         f={:.3f} A={:.3f} ϕ={:.3f} μ=
 plt.plot(t, robust_data,':',  label='robust lsq  f={:.3f} A={:.3f} ϕ={:.3f} μ={:.3f}'.format(robust_freq, robust_amp, robust_phase, robust_mean))
 plt.plot(t, fft_data,   '-',  label='fft         f={:.3f} A={:.3f} ϕ={:.3f} μ={:.3f}'.format(fft_freq, fft_amp, fft_phase, fft_mean))
 plt.plot(t, num_data,   '--', label='given freq  f={:.3f} A={:.3f} ϕ={:.3f} μ={:.3f}'.format(num_freq, num_amp, num_phase, num_mean))
+plt.plot(t, gn_data,    '-',  label='gn          f={:.3f} A={:.3f} ϕ={:.3f} μ={:.3f}'.format(gn_freq, gn_amp, gn_phase, gn_mean))
 plt.legend(prop={})
 plt.show()
