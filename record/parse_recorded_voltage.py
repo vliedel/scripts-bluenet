@@ -4,18 +4,29 @@ import sys, os
 
 """
 Parses a file recorded with record-voltage.py
-Returns a list of consecutive (uninterrupted) timestamps and samples. 
+Returns a list of consecutive (uninterrupted) timestamps and samples.
 """
 
-def parse(fileName):
+def parse(fileName, filterTimeJumps=True, fix10BitData=True):
+    """
+    Parses a file recorded with record-voltage.py
+    Returns a list of consecutive (uninterrupted) timestamps and samples.
+
+    :param fileName:        Name of the file to parse.
+    :param filterTimeJumps: True to consider curves with a time jump between them as not consecutive.
+    :param fix10BitData:    Some data was recorded with 10bit ADC resolution, instead of 12bit.
+                            Enabling this will change the range of the data if it's never outside the 10 bit range.
+
+    :return: A list of consecutive (uninterrupted) timestamps and samples in the form:
+             ([[t0, t1, ... , tN], [t0, t1, ... , tM], ...], [[y0, y1, ... , yN], [y0, y1, ... , yM], ...])
+    """
     # Config
     RTC_CLOCK_FREQ = 32768
     MAX_RTC_COUNTER_VAL = 0x00FFFFFF
     SAMPLE_TIME_US = 200
 
-    # Some data was recorded with 10bit ADC resolution, instead of 12bit.
-    # Enabling this will change the range of the data if it's never outside the 10 bit range.
-    FIX_10_BIT_DATA = True
+    # Max deviation of sample time, before considering it a time jump
+    SAMPLE_TIME_US_MAX_DEVIATION = 20
 
     f = open(fileName, 'r')
     data = json.load(f)
@@ -37,6 +48,9 @@ def parse(fileName):
     uartNoiseTimestampsMs = []
     timestampDiffMs = 0
 
+    timeJump = False
+    prevLastTimestamp = None
+
     for entry in data:
         if ('restart' in entry):
             restarted = True
@@ -46,7 +60,7 @@ def parse(fileName):
             buffer = entry['samples']
 
             # HACK: Some data was recorded with 10bit ADC resolution, instead of 12bit
-            if (FIX_10_BIT_DATA and max(buffer) < 1024 and min(buffer) > -1024):
+            if (fix10BitData and max(buffer) < 1024 and min(buffer) > -1024):
                 for k in range(0, len(buffer)):
                     buffer[k] *= 4
 
@@ -55,7 +69,18 @@ def parse(fileName):
             timestampMs = timestamp * 1000.0 / RTC_CLOCK_FREQ
             timestampsMs = np.array(range(0, len(buffer))) * SAMPLE_TIME_US / 1000.0 + timestampMs
 
-            if (restarted or uartNoise):
+            timeJump = False
+            if (prevLastTimestamp is not None):
+                dt = timestampsMs[0] - prevLastTimestamp
+                dtMin = (SAMPLE_TIME_US - SAMPLE_TIME_US_MAX_DEVIATION) / 1000.0
+                dtMax = (SAMPLE_TIME_US + SAMPLE_TIME_US_MAX_DEVIATION) / 1000.0
+                print("dt=", dt, "dtMax=", dtMax, "dtMin=", dtMin)
+                if (dtMin > dt or dt > dtMax):
+                    print("time jump of", dt - SAMPLE_TIME_US/1000.0, "ms")
+                    timeJump = True
+            prevLastTimestamp = timestampsMs[-1]
+
+            if (restarted or uartNoise or (filterTimeJumps and timeJump)):
                 if (len(consecutiveBuffers)):
                     # Current buffer is not directly following previous buffer.
                     allConsecutiveBuffers.append(consecutiveBuffers)
@@ -85,6 +110,8 @@ def parse(fileName):
             i += 1
             allBuffers.append(buffer)
             allTimestamps.append(timestampsMs)
+            # if i > 10:
+            #     break
 
     f.close()
 
