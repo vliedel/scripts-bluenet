@@ -1,15 +1,25 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-""" Capture voltage samples to file """
+"""
+Capture voltage samples to file.
+
+Assumes there is a file "config.json" with optional:
+  device:               UART tty device.
+  baudrate:             UART baudrate.
+  outputFilenamePrefix: Prefix of the output file names.
+  outputFileDir:        Directory to put the output files.
+  readStdin:            Whether to read std input
+"""
 
 import time, signal
 import json
 import select, sys
-from BluenetLib import Bluenet, BluenetEventBus, Topics
-from BluenetLib.lib.topics.DevTopics import DevTopics
+
+from crownstone_uart import CrownstoneUart, UartEventBus, UartTopics
+from crownstone_uart.topics.DevTopics import DevTopics
 
 # Declare vars so they can be used globally
-bluenet = None
+crownstone = None
 outputFile = None
 wroteFirstEntry = False
 sigInt = False
@@ -34,27 +44,27 @@ def main():
 
 	newOutputFile()
 
-	# Create new instance of Bluenet
-	global bluenet
-	bluenet = Bluenet(catchSIGINT=False)
+	# Create new instance of Crownstone UART.
+	global crownstone
+	crownstone = CrownstoneUart()
 
 	# Set up event listeners
-	BluenetEventBus.subscribe(DevTopics.newVoltageData, onSamples)
-	BluenetEventBus.subscribe(DevTopics.newAdcConfigPacket, onAdcConfig)
-	BluenetEventBus.subscribe(DevTopics.adcRestarted, onAdcRestarted)
-	BluenetEventBus.subscribe(DevTopics.uartNoise, onUartNoise)
+	UartEventBus.subscribe(DevTopics.newVoltageData, onSamples)
+	UartEventBus.subscribe(DevTopics.newAdcConfigPacket, onAdcConfig)
+	UartEventBus.subscribe(DevTopics.adcRestarted, onAdcRestarted)
+	UartEventBus.subscribe(DevTopics.uartNoise, onUartNoise)
 
 	# start listener for SIGINT kill command
 	signal.signal(signal.SIGINT, stopAll)
 
 	# Start up the USB bridge
-	bluenet.initializeUSB(device, baudrate=baudrate)
+	crownstone.initialize_usb_sync()
 
 	# Need to sleep for some reason
 	time.sleep(1)
 
 	# Enable voltage logs
-	bluenet._usbDev.setSendVoltageSamples(True)
+	crownstone._usbDev.setSendVoltageSamples(True)
 
 	while not sigInt:
 		if (readStdin):
@@ -151,7 +161,7 @@ def onUartNoise(data):
 def stopAll(signal, frame):
 	global sigInt
 	sigInt = True
-	bluenet.stop()
+	crownstone.stop()
 	closeOutputFile()
 
 # Call main
