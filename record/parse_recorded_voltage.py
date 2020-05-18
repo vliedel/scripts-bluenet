@@ -74,7 +74,7 @@ def parse(fileName, filterTimeJumps=True, fix10BitData=True):
                 dt = timestampsMs[0] - prevLastTimestamp
                 dtMin = (SAMPLE_TIME_US - SAMPLE_TIME_US_MAX_DEVIATION) / 1000.0
                 dtMax = (SAMPLE_TIME_US + SAMPLE_TIME_US_MAX_DEVIATION) / 1000.0
-                print("dt=", dt, "dtMax=", dtMax, "dtMin=", dtMin)
+#                print("dt=", dt, "dtMax=", dtMax, "dtMin=", dtMin)
                 if (dtMin > dt or dt > dtMax):
                     print("time jump of", dt - SAMPLE_TIME_US/1000.0, "ms")
                     timeJump = True
@@ -87,9 +87,17 @@ def parse(fileName, filterTimeJumps=True, fix10BitData=True):
                     allConsecutiveTimestamps.append(consecutiveTimestamps)
                     consecutiveBuffers = []
                     consecutiveTimestamps = []
+            else:
+                if (len(consecutiveBuffers)):
+                    # Assume the first sample is exactly "sample time" after the last sample of the previous buffer.
+                    print("timestampMs=", timestampMs, " corrected=", consecutiveTimestamps[-1] + SAMPLE_TIME_US / 1000.0)
+                    timestampMs = consecutiveTimestamps[-1] + SAMPLE_TIME_US / 1000.0
+                    timestampsMs = np.array(range(0, len(buffer))) * SAMPLE_TIME_US / 1000.0 + timestampMs
 
             consecutiveBuffers.extend(buffer)
             consecutiveTimestamps.extend(timestampsMs)
+
+
 
             if i > 0:
                 timestampDiff = (timestamps[-1] - timestamps[-2]) & MAX_RTC_COUNTER_VAL
@@ -110,7 +118,7 @@ def parse(fileName, filterTimeJumps=True, fix10BitData=True):
             i += 1
             allBuffers.append(buffer)
             allTimestamps.append(timestampsMs)
-            # if i > 10:
+            # if i > 3:
             #     break
 
     f.close()
