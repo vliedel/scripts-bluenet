@@ -3,6 +3,7 @@ import json
 import sys, os
 import re
 import matplotlib.pyplot as plt
+import json
 
 """
 Parses an app log file.
@@ -16,17 +17,14 @@ timePattern        = re.compile("^(\d+)")
 annotationPattern  = re.compile(".*ANNOTATION: (.*)")
 
 # Matches: getPowerSamples triggeredSwitchcraft [{"samples":[357,443,534,279],"multiplier":0},{"samples":[-357,-443,-534,-279],"multiplier":0}]
-switchcraftPattern = re.compile(".*getPowerSamples triggeredSwitchcraft \[{")
-
-# Matches: "samples":[357,-443,534,279]
-samplesPattern = re.compile("samples\":\[([0-9\- ,]+)\]")
+switchcraftPattern = re.compile(".*getPowerSamples (triggered|missed)Switchcraft (\[{.*)")
 
 def parse(fileName):
     with open(fileName, 'r') as file:
         lines = file.readlines()
 
         # The log is in reverse order
-        lines.reverse()
+#        lines.reverse()
 
         timestamp = 0
         annotation = ""
@@ -52,18 +50,13 @@ def parse(fileName):
             match = switchcraftPattern.match(line)
             if (match):
                 samples = []
-                # hah, have fun with the 3 lookalike words!
-                samplesStrings = samplesPattern.findall(line)
-                for samplesString in samplesStrings:
-                    sampleStrings = samplesString.split(',')
-                    for s in sampleStrings:
-                        try:
-                            sample = int(s)
-                        except:
-                            print("Invalid sample value:", s, "in line:", line)
-                            exit(1)
-                        samples.append(sample)
-
+                try:
+                    samplesJson = json.loads(match.group(2))
+                    for i in range(0, len(samplesJson)):
+                        samples.extend(samplesJson[i]["samples"])
+                except:
+                    print("Invalid data in line:", line)
+                    exit(1)
 
     plt.show()
 
