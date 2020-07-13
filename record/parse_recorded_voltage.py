@@ -76,7 +76,7 @@ def parse(fileName, filterTimeJumps=True, fix10BitData=True):
                 dtMax = (SAMPLE_TIME_US + SAMPLE_TIME_US_MAX_DEVIATION) / 1000.0
 #                print("dt=", dt, "dtMax=", dtMax, "dtMin=", dtMin)
                 if (dtMin > dt or dt > dtMax):
-                    print("time jump of", dt - SAMPLE_TIME_US/1000.0, "ms")
+#                    print("time jump of", dt - SAMPLE_TIME_US/1000.0, "ms")
                     timeJump = True
             prevLastTimestamp = timestampsMs[-1]
 
@@ -90,7 +90,7 @@ def parse(fileName, filterTimeJumps=True, fix10BitData=True):
             else:
                 if (len(consecutiveBuffers)):
                     # Assume the first sample is exactly "sample time" after the last sample of the previous buffer.
-                    print("timestampMs=", timestampMs, " corrected=", consecutiveTimestamps[-1] + SAMPLE_TIME_US / 1000.0)
+#                    print("timestampMs=", timestampMs, " corrected=", consecutiveTimestamps[-1] + SAMPLE_TIME_US / 1000.0)
                     timestampMs = consecutiveTimestamps[-1] + SAMPLE_TIME_US / 1000.0
                     timestampsMs = np.array(range(0, len(buffer))) * SAMPLE_TIME_US / 1000.0 + timestampMs
 
