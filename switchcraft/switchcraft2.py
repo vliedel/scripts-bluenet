@@ -70,11 +70,11 @@ def main():
 		if PLOT:
 			if PLOT_DEBUG:
 				fig, (ax1, ax2) = plt.subplots(2, sharex=True)
-				ax1.title(fileName)
+				fig.suptitle(fileName)
 			else:
 				fig, (ax1, ax2) = plt.subplots(2, sharex=True)
 				print(ax1)
-				plt.title(fileName)
+				fig.suptitle(fileName)
 
 		# Init file vars
 		openedFig = False
@@ -147,9 +147,9 @@ def main():
 					else:
 						if foundSwitch:
 							# if (leftScore12 > THRESHOLD):
-							ax1.plot(t0, buf0, '-o')
-							ax1.plot(t1, buf1, '-o')
-							ax1.plot(t2, buf2, '-o')
+							ax1.plot(t0, buf0, '.-')
+							ax1.plot(t1, buf1, '.-')
+							ax1.plot(t2, buf2, '.-')
 							scoreInd = 0
 							for [score12, score23, score13] in scores:
 								ax2.plot(scoreTimestamps[scoreInd], score12, '<')
@@ -180,19 +180,19 @@ def main():
 						diffBuffer = buf2 - buf1
 						diffAroundBuffer = buf2 - buf0
 
-						ax1.plot(t0, buf0, '--')
+						ax1.plot(t0, buf0, '.-')
 						ax1.plot(t1, diffBuffer)
 						ax1.plot(t1, diffAroundBuffer, '--')
 
 					# Also plot last 2 buffers of consecutive buffers list
-					ax1.plot(t1, buf1, '--')
-					ax1.plot(t2, buf2, '--')
+					ax1.plot(t1, buf1, '.-')
+					ax1.plot(t2, buf2, '.-')
 
 				scoresMat = np.array(allScores)
 				ax2.plot(allScoreTimestamps, scoresMat[:,:,0], '<') # scores 12
 				ax2.plot(allScoreTimestamps, scoresMat[:,:,1], '>') # scores 23
 				ax2.plot(allScoreTimestamps, scoresMat[:,:,2], '^') # scores 13
-				# ax2.plot(allScoreTimestamps, scoresMat[:,:,3], 'o') # ratio
+				# ax2.plot(allScoreTimestamps, scoresMat[:,:,3], '.') # ratio
 
 				ax2.plot([allTimestamps[0][0], allTimestamps[-1][-1]], [THRESHOLD_DIFFERENT, THRESHOLD_DIFFERENT], '-k')
 				ax2.plot([allTimestamps[0][0], allTimestamps[-1][-1]], [THRESHOLD_SIMILAR, THRESHOLD_SIMILAR], '--k')
@@ -226,7 +226,7 @@ def main():
 		ax1.plot([0,len(bestScoresMat)], [THRESHOLD_DIFFERENT, THRESHOLD_DIFFERENT], '-k')
 		ax1.plot([0,len(bestScoresMat)], [THRESHOLD_SIMILAR, THRESHOLD_SIMILAR], '--k')
 
-		ax2.plot(bestScoresMat[:, 3], 'o')  # ratio
+		ax2.plot(bestScoresMat[:, 3], '.')  # ratio
 		ax2.plot([0, len(bestScoresMat)], [THRESHOLD_RATIO, THRESHOLD_RATIO], '--k')
 		plt.show()
 
