@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-"""An example that retrieves power samples from a Crownstone with given MAC address."""
-
 import argparse
 from crownstone_ble import CrownstoneBle
 from crownstone_core.protocol.BluenetTypes import PowerSamplesType
@@ -25,14 +23,14 @@ parser.add_argument('-O', '--outputPrefix', dest='outputPrefix', type=str, nargs
 parser.add_argument('keyFile',
         help='The json file with key information, expected values: admin, member, guest, basic,' +
         'serviceDataKey, localizationKey, meshApplicationKey, and meshNetworkKey')
-parser.add_argument('bleAddress',
+parser.add_argument('bleAddress', type=str,
         help='The BLE address of Crownstone to switch')
 
 args = parser.parse_args()
 
-MULTIPLIER_VOLTAGE = -0.253
+MULTIPLIER_VOLTAGE = -0.2547
 #MULTIPLIER_CURRENT = 0.0071
-MULTIPLIER_CURRENT = 0.0142
+MULTIPLIER_CURRENT = 0.01486
 
 class CalculatedPower:
     voltageZero = 0.0
@@ -125,7 +123,7 @@ try:
     output["currentSampes"] = []
 
     try:
-        for i in range(0, 10):
+        for i in range(0, 20):
 #            print("Retrieving power samples..")
 
 #            powerSamplesUnfiltered = core.debug.getPowerSamples(PowerSamplesType.NOW_UNFILTERED)
@@ -144,7 +142,7 @@ try:
             if key is not None:
                 print("Pressed:", key)
 
-        fileName = args.outputPrefix + "_" + str(args.powerGroundTruth) + "W.txt"
+        fileName = args.outputPrefix + "_" + args.bleAddress + "_" + str(args.powerGroundTruth) + "W.txt"
         with open(fileName, 'w') as outfile:
             json.dump(output, outfile)
 
