@@ -112,6 +112,18 @@ def main():
 				ax22.plot(x, currentSamples[i], '.-')
 				t += len(voltageSamples[i])
 
+	if len(fileNames) < 2:
+		print("/!\ Not enough data /!\ ")
+		voltageMultiplier = voltageTruth[0] / voltageMean[0]
+		currentMultiplier = currentTruth[0] / currentMean[0]
+		print("voltageMultiplier:", voltageMultiplier)
+		print("currentMultiplier:", currentMultiplier)
+
+
+		if PLOT_SAMPLES:
+			plt.show()
+		return
+
 	# Fit the data: calibrated = x[0] * truth + x[1]
 	# voltageFit = np.polyfit(voltageTruth, voltageMean, 1)
 	# currentFit = np.polyfit(currentTruth, currentMean, 1)
