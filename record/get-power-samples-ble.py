@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import argparse
+import time
+
 from crownstone_ble import CrownstoneBle
 from crownstone_core.packets.PowerSamplesPacket import PowerSamplesPacket
 from crownstone_core.protocol.BluenetTypes import PowerSamplesType
@@ -104,6 +106,7 @@ try:
 			print("")
 
 			output["localTime"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+			output["localTimestamp"] = time.time()
 			output["voltage"] = getMap(powerSamplesFiltered[0])
 			output["current"] = getMap(powerSamplesFiltered[1])
 
