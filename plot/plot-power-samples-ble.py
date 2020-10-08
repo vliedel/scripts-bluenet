@@ -71,19 +71,19 @@ def main():
 				currentMean.append(Imean)
 				localTimestamp.append(datetime.datetime.fromtimestamp(Tlocal))
 
-			ax1.plot(localTimestamp, voltageRms)
+			ax1.plot(localTimestamp, voltageRms, '.')
 			ax1.set_xlabel("time")
 			ax1.set_ylabel("rms (V)")
 
-			ax2.plot(localTimestamp, voltageMean)
+			ax2.plot(localTimestamp, voltageMean, '.')
 			ax2.set_xlabel("time")
 			ax2.set_ylabel("mean (V)")
 
-			ax3.plot(localTimestamp, currentRms)
+			ax3.plot(localTimestamp, currentRms, '.')
 			ax3.set_xlabel("time")
 			ax3.set_ylabel("rms (A)")
 
-			ax4.plot(localTimestamp, currentMean)
+			ax4.plot(localTimestamp, currentMean, '.')
 			ax4.set_xlabel("time")
 			ax4.set_ylabel("mean (A)")
 	plt.show()
