@@ -123,15 +123,15 @@ def parse(fileName):
 	return allConsecutiveTimestamps, allConsecutiveSamples, allConsecutiveMetaData
 
 def calcCurrentOrVoltageRms(samples, zero):
-	rms = calcRms(samples - zero, samples - zero)
+	rms = calcRms(samples - zero, samples - zero, True)
 	return rms
 
-def calcRms(samples1, samples2, square=True):
+def calcRms(samples1, samples2, squareRoot=True):
 	rms = 0.0
 	for i in range(0, len(samples1)):
 		rms += samples1[i] * samples2[i]
 	rms /= len(samples1)
-	if (square):
+	if (squareRoot):
 		return np.sqrt(rms)
 	else:
 		return rms
