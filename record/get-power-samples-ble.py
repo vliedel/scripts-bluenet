@@ -4,7 +4,7 @@ import argparse
 import time
 
 from crownstone_ble import CrownstoneBle
-from crownstone_core.packets.PowerSamplesPacket import PowerSamplesPacket
+from crownstone_core.packets.debug.PowerSamplesPacket import PowerSamplesPacket
 from crownstone_core.protocol.BluenetTypes import PowerSamplesType
 import traceback
 import numpy as np
