@@ -58,12 +58,12 @@ def main():
 				ax2.annotate("rms=" + str(rms) + "\nrmsCorrected=" + str(rmsCorrected),
 				             xy=(allTimestamps[i][0], allSamples[i][0]))
 
-	if hasVoltageBuffers:
-		ax1.set_ylabel("Voltage (V)")
-		ax1.set_xlabel("Time (ms)")
-	if hasCurrentBuffers:
-		ax2.set_ylabel("Current (A)")
-		ax2.set_xlabel("Time (ms)")
+		if hasVoltageBuffers:
+			ax1.set_ylabel("Voltage (V)")
+			ax1.set_xlabel("Time (ms)")
+		if hasCurrentBuffers:
+			ax2.set_ylabel("Current (A)")
+			ax2.set_xlabel("Time (ms)")
 	plt.show()
 
 main()
