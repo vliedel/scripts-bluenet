@@ -114,7 +114,7 @@ try:
 			if key is not None:
 				print("Pressed:", key)
 
-			fileName = args.outputPrefix + "_" + args.bleAddress + ".txt"
+			fileName = args.outputPrefix + "_" + args.bleAddress + "_" + datetime.datetime.now().strftime("%Y-%m-%d") + ".txt"
 			with open(fileName, 'a') as outfile:
 				json.dump(output, outfile)
 				outfile.write("\n")
