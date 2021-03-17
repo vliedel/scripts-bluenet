@@ -21,9 +21,9 @@ from scipy.optimize import *
 import gauss_newton
 
 # Limit number of curves, too many will take too long, and make the plot slow anyway.
-MAX_CURVES_TO_FIT = 500
+MAX_CURVES_TO_FIT = 1
 
-PLOT_CURVES = False
+PLOT_CURVES = True
 
 # Whether to limit the y axis of the results (amplitude, frequency, phase, mean, error).
 PLOT_LIMIT_Y_RESULTS = False
@@ -36,7 +36,7 @@ PLOT_GUESS = False
 REMOVE_PEAKS_PERCENTAGE = 20
 
 NUM_SAMPLES_FOR_FIT = 300
-NUM_SAMPLES_FOR_TRUTH_FIT = 3000
+NUM_SAMPLES_FOR_TRUTH_FIT = 10*NUM_SAMPLES_FOR_FIT
 ESTIMATED_FREQUENCY = 50
 MIN_FREQ = 40
 MAX_FREQ = 60
@@ -199,7 +199,9 @@ def main():
             y = y[0:NUM_SAMPLES_FOR_FIT]
             t_orig = t
 
-            guess_mean = (max(y) - min(y)) / 2 + min(y)
+            # Doesn't really matter if we use np.mean(y) or (max(y) - min(y)) / 2 + min(y)
+#            guess_mean = (max(y) - min(y)) / 2 + min(y)
+            guess_mean = np.mean(y)
             guess_amp = max(y) - guess_mean
             guess_angular_frequency = 2 * np.pi * ESTIMATED_FREQUENCY
             guess_phase = get_phase_estimate(t, y, guess_mean)
@@ -252,15 +254,18 @@ def main():
                 t_plot_filtered = t_filtered + prevLastTime
                 prevLastTime = t_plot[-1]
 
-                plt.plot(t_plot, y, '-o')
-                plt.plot(t_plot_filtered, y_filtered, 'x')
-                if i == 0:
+
+                if numCurves == 0:
+                    plt.plot(t_plot, y, '-o', label='samples')
+                    plt.plot(t_plot_filtered, y_filtered, 'x', label='fit input')
                     plt.plot(t_plot, guess_curve, ',', label=algoName.guess.name)
                     plt.plot(t_plot, truth_curve, '*', label=algoName.truth.name)
                     plt.plot(t_plot, gn_curve, '--', label=algoName.gn.name)
                     plt.plot(t_plot, lm_curve, ':', label=algoName.lm.name)
                     plt.plot(t_plot, bound_curve, '-.', label=algoName.bound.name)
                 else:
+                    plt.plot(t_plot, y, '-o')
+                    plt.plot(t_plot_filtered, y_filtered, 'x')
                     plt.plot(t_plot, guess_curve, ',')
                     plt.plot(t_plot, truth_curve, '*')
                     plt.plot(t_plot, gn_curve, '--')
@@ -272,7 +277,7 @@ def main():
                 break
 
     if PLOT_CURVES:
-        plt.ylim([min(y) * 0.9, max(y) * 1.1])
+        # plt.ylim([min(y) * 0.9, max(y) * 1.1])
         plt.legend()
 
     # Just use last boundaries for plotting limits.
@@ -302,6 +307,7 @@ def main():
             if PLOT_LIMIT_Y_RESULTS:
                 axs[j].set_ylim([boundaries[0][j], boundaries[1][j]])
 
+        axs[1].plot([0, len(errors[algoName.guess.name])], [ESTIMATED_FREQUENCY, ESTIMATED_FREQUENCY])
         axs[4].plot(errors[algo_labels[i]], line_styles[i], label=algo_labels[i])
 
     axs[4].legend()
