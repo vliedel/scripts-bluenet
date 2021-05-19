@@ -12,6 +12,7 @@ from crownstone_core.packets.assetFilter.FilterDescriptionPackets import *
 from crownstone_core.packets.assetFilter.FilterIOPackets import *
 from crownstone_core.packets.assetFilter.FilterMetaDataPackets import *
 from crownstone_core.util import AssetFilterUtil
+from crownstone_core.util.AssetFilterUtil import get_filter_crc
 from crownstone_core.util.Cuckoofilter import CuckooFilter
 from crownstone_uart import CrownstoneUart
 
@@ -59,10 +60,30 @@ async def main():
 		await uart.initialize_usb(port=args.device, writeChunkMaxSize=64)
 #		logging.DEBUG("init done")
 
-		await asyncio.sleep(1)
+		# await asyncio.sleep(1)
 
 		filters = await uart.control.getFilterSummaries()
 		print(filters)
+		masterVersion = filters.masterVersion.val
+
+		##############################################################################################
+		##################################### Remove all filters #####################################
+		##############################################################################################
+
+		print("Remove all filters")
+		for f in filters.summaries.val:
+			await uart.control.removeFilter(f.filterId)
+
+		masterVersion += 1
+		filtersAndIds = []
+		masterCrc = AssetFilterUtil.get_master_crc_from_filters(filtersAndIds)
+		print("Master CRC:", masterCrc)
+		print("Commit")
+		await uart.control.commitFilterChanges(masterVersion, masterCrc)
+
+		#############################################################################################
+		##################################### Create new filter #####################################
+		#############################################################################################
 
 		filterInput = FilterInputDescription()
 		filterInput.format.type = AdvertisementSubdataType.MAC_ADDRESS
@@ -95,26 +116,41 @@ async def main():
 		filter.filterdata.val = cuckooFilterData
 
 		print("Filter size:", len(filter.getPacket()))
+		print("Filter CRC:", get_filter_crc(filter))
+
+
+		###########################################################################################
+		##################################### Uploade filters #####################################
+		###########################################################################################
+
+		filters = [filter, filter, filter]
 
 		filterId = 0
-		masterVersion = 1
-		masterCrc = AssetFilterUtil.get_master_crc_from_filters([AssetFilterAndId(filterId, filter)])
+		masterVersion += 1
 
-		print(f"Upload filter {filterId}")
-		await uart.control.uploadFilter(filterId, filter)
-		#
-		# await asyncio.sleep(0.1)
+		filtersAndIds = []
+		for f in filters:
+			filtersAndIds.append(AssetFilterAndId(filterId, filter))
+			filterId += 1
 
+		masterCrc = AssetFilterUtil.get_master_crc_from_filters(filtersAndIds)
+		print("Master CRC:", masterCrc)
+
+		filterId = 0
+		for f in filters:
+			print(f"Upload filter {filterId}")
+			await uart.control.uploadFilter(filterId, f)
+			filterId += 1
 		print("Commit")
 		await uart.control.commitFilterChanges(masterVersion, masterCrc)
 
 		# Simply keep the program running.
 		while True:
-			await asyncio.sleep(1)
+			await asyncio.sleep(0.1)
 	except KeyboardInterrupt:
 		pass
 	finally:
-		time.sleep(1)
+		# time.sleep(1)
 		print("\nStopping UART..")
 		uart.stop()
 		print("Stopped")
