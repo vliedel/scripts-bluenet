@@ -39,7 +39,7 @@ def parse(file_name):
 
 	plot_data = {}
 
-	# Keep up number of assets
+	stones = set()
 	assets = set()
 
 	with open(file_name, 'r') as file:
@@ -56,7 +56,7 @@ def parse(file_name):
 					# asset_id = "FF:00:00:00:00:00"
 					asset_id = "Simulated tag"
 
-
+				stones.add(stone_id)
 				assets.add(asset_id)
 				if stone_id not in plot_data:
 					plot_data[stone_id] = {}
@@ -65,76 +65,97 @@ def parse(file_name):
 						"time": [],
 						"rssi": [],
 					}
-				plot_data[stone_id][asset_id]["time"].append(d["t"])
+				plot_data[stone_id][asset_id]["time"].append(d["t"] / 1000.0)
 				plot_data[stone_id][asset_id]["rssi"].append(d["r"])
 
-
-	# Calculate time between scans:
+	# Calculate time between scans
+	outlier_delta_time = 3600
+	print("------------------------- Warning -------------------------")
+	print(f"Removing outliers: any time between scans above {outlier_delta_time}")
+	print("-----------------------------------------------------------")
 	for stone_id in plot_data:
 		for asset_id in plot_data[stone_id]:
-			plot_data[stone_id][asset_id]["delta_time"] = np.diff(plot_data[stone_id][asset_id]["time"]) / 1000.0
+			plot_data[stone_id][asset_id]["delta_time"] = np.diff(plot_data[stone_id][asset_id]["time"])
 			# print("time:", plot_data[stone_id][asset_id]["time"])
 			# print("delta_time:", plot_data[stone_id][asset_id]["delta_time"])
 
+			# Remove outliers
+			plot_data[stone_id][asset_id]["delta_time"] = np.minimum(plot_data[stone_id][asset_id]["delta_time"], 3600)
+
+	# Sort the stones and assets, for nicer plotting
+	stones = sorted(stones)
+	assets = sorted(assets)
 
 	too_many_assets = len(assets) > 20
 	too_many_stones = len(plot_data.keys()) > 10
 
 	if too_many_assets:
-		stones_per_figure = 18
+		stones_per_figure = 20
 	else:
-		stones_per_figure = int(np.ceil(15 / len(assets)))
+		stones_per_figure = 2 * int(np.ceil(18 / len(assets)))
 
 
 	if too_many_assets:
 		i = 0
 		box_data = []
 		box_labels = []
-		for stone_id in plot_data:
+		for stone_id in stones:
 			if i == 0:
 				plt.figure()
 				plt.xlabel("Time between scans (s)")
 
 			stone_data = []
-			for asset_id in plot_data[stone_id]:
-				stone_data.extend(plot_data[stone_id][asset_id]["delta_time"])
+			for asset_id in sorted(plot_data[stone_id].keys()):
+					stone_data.extend(plot_data[stone_id][asset_id]["delta_time"])
 			print(stone_data)
 			box_data.append(stone_data)
 			box_labels.append(f"stone {stone_id}")
 			i += 1
 			if i == stones_per_figure:
-				plt.boxplot(box_data, labels=box_labels, vert=False, showfliers=False)
+				plt.boxplot(box_data, labels=box_labels, vert=False, showfliers=True)
 				i = 0
 				box_data = []
 				box_labels = []
 		if i != 0:
-			plt.boxplot(box_data, labels=box_labels, vert=False, showfliers=False)
+			plt.boxplot(box_data, labels=box_labels, vert=False, showfliers=True)
 		plt.show()
 
 	else:
 		i = 0
+		j = 0
+		xlim = ()
 		fig_counter = 0
-		for stone_id in plot_data:
-			if i == 0:
+		for stone_id in stones:
+			if i == 0 and j == 0:
 				# Start a new figure
-				subplot_count = min(len(plot_data.keys()) - fig_counter * stones_per_figure, stones_per_figure)
-				fig, axs = plt.subplots(nrows=subplot_count, sharex=True)
-				if subplot_count == 1:
+				#subplot_row_count = min(len(plot_data.keys()) - fig_counter * stones_per_figure, stones_per_figure)
+				subplot_row_count = int(stones_per_figure / 2)
+				fig, axs = plt.subplots(nrows=subplot_row_count, ncols=2, sharex=True)
+				if fig_counter != 0:
+					plt.xlim(xlim)
+
+				if subplot_row_count == 1:
 					axs = [axs]
-				plt.xlabel("Time between scans (s)")
+				for col in range(0, 2):
+					axs[subplot_row_count - 1, col].set_xlabel("Time between scans (s)")
 
 			box_data = []
 			box_labels = []
-			for asset_id in plot_data[stone_id]:
+			for asset_id in sorted(plot_data[stone_id].keys()):
 				box_data.append(plot_data[stone_id][asset_id]["delta_time"])
 				box_labels.append(f"{asset_id}")
 
-			axs[i].boxplot(box_data, labels=box_labels, vert=False, showfliers=False)
-			axs[i].set_title(f"stone {stone_id}")
+			axs[i,j].boxplot(box_data, labels=box_labels, vert=False, showfliers=True)
+			axs[i,j].set_title(f"stone {stone_id}")
 			i += 1
-			if i == stones_per_figure:
-				fig_counter += 1
+			if i == subplot_row_count:
 				i = 0
+				j += 1
+				if j == 2:
+					j = 0
+					if fig_counter == 0:
+						xlim = plt.xlim()
+					fig_counter += 1
 		plt.show()
 
 
@@ -145,7 +166,7 @@ def parse(file_name):
 	line_styles = ['-', '--', ':']
 	marker_styles = ['o', 'x', '+', 's', 'v', 'D', '2', '*']
 
-	for stone_id in plot_data:
+	for stone_id in stones:
 		plt.figure()
 		plt.title(f"Scanned assets by crownstone {stone_id}")
 		plt.ylabel("Time since previous scan (s)")
@@ -157,19 +178,13 @@ def parse(file_name):
 		line_style_cycler = cycle(line_styles)
 		marker_style_cycler = cycle(marker_styles)
 
-		for asset_id in plot_data[stone_id]:
+		for asset_id in sorted(plot_data[stone_id].keys()):
 			if not too_many_assets:
 				x = []
 				y = []
-			prev_time = None
-			for t in plot_data[stone_id][asset_id]["time"]:
-				if prev_time is None:
-					delta_time = 0
-				else:
-					delta_time = t - prev_time
-				prev_time = t
-				y.append(delta_time / 1000.0)
-				x.append(datetime.datetime.fromtimestamp(t / 1000.0))
+			for t in plot_data[stone_id][asset_id]["time"][1:]:
+				x.append(datetime.datetime.fromtimestamp(t))
+			y.extend(plot_data[stone_id][asset_id]["delta_time"])
 
 			if not too_many_assets:
 				# plt.plot(x, y, next(marker_style_cycler) + next(line_style_cycler), label=f"{asset_id}")
