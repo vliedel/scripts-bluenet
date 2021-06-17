@@ -43,58 +43,65 @@ class ServiceDataChecker:
 		self.result = False
 		self.default_timeout = 5
 
-	def handleAdvertisement(self, scanData: ScanData):
-		print(scanData)
+	def handle_advertisement(self, scan_data: ScanData):
+		print(scan_data)
 		if self.result:
 			# We already have the correct result.
 			return
-		if scanData.payload is None:
+		if scan_data.payload is None:
 			return
-		if scanData.address.lower() != self.address:
+		if scan_data.address.lower() != self.address:
 			return
-		if scanData.payload.type == AdvType.EXTERNAL_STATE or scanData.payload.type == AdvType.EXTERNAL_ERROR:
+		if scan_data.payload.type == AdvType.EXTERNAL_STATE or scan_data.payload.type == AdvType.EXTERNAL_ERROR:
 			# Only handle state of the crownstone itself.
 			return
-		if self.checkAdvertisement(scanData):
+		if self.check_advertisement(scan_data):
 			self.result = True
 			BleEventBus.emit(SystemBleTopics.abortScanning, True)
 
 	# Function to be implemented by derived class.
-	def checkAdvertisement(self, scanData: ScanData) -> bool:
+	def check_advertisement(self, scan_data: ScanData) -> bool:
 		return False
 
 	# Function to be implemented by derived class.
-	def getErrorString(self) -> str:
+	def get_error_string(self) -> str:
 		return "Error"
 
+	# Function to be implemented by derived class.
+	def get_run_string(self) -> str:
+		return "Checking"
+
 	async def run(self, timeout_seconds: int = None):
-		subId = BleEventBus.subscribe(BleTopics.advertisement, self.handleAdvertisement)
+		print(self.get_run_string())
+		subId = BleEventBus.subscribe(BleTopics.advertisement, self.handle_advertisement)
 		if timeout_seconds is None:
 			timeout_seconds = self.default_timeout
 		await core.ble.scan(duration=timeout_seconds)
 		BleEventBus.unsubscribe(subId)
 		if not self.result:
-			raise Exception(self.getErrorString())
+			raise Exception(self.get_error_string())
 
 
 
 class PowerUsageChecker(ServiceDataChecker):
-	def __init__(self, address: str, minPower: float, maxPower: float):
+	def __init__(self, address: str, min_power: float, max_power: float):
 		super().__init__(address)
 		self.default_timeout = 10
-		self.minPower = minPower
-		self.maxPower = maxPower
-		self.receivedValue = None
+		self.min_power = min_power
+		self.max_power = max_power
+		self.received_value = None
 
-	def checkAdvertisement(self, scanData: ScanData) -> bool:
-		if scanData.payload.type not in [AdvType.CROWNSTONE_STATE, AdvType.SETUP_STATE, AdvType.CROWNSTONE_ERROR]:
+	def check_advertisement(self, scan_data: ScanData) -> bool:
+		if scan_data.payload.type not in [AdvType.CROWNSTONE_STATE, AdvType.SETUP_STATE, AdvType.CROWNSTONE_ERROR]:
 			return False
-		self.receivedValue = scanData.payload.powerUsageReal
-		return (self.minPower <= self.receivedValue <= self.maxPower)
+		self.received_value = scan_data.payload.powerUsageReal
+		return (self.min_power <= self.received_value <= self.max_power)
 
-	def getErrorString(self) -> str:
-		return f"Expected power usage between {self.minPower} and {self.maxPower}, got {self.receivedValue}"
+	def get_error_string(self) -> str:
+		return f"Expected power usage between {self.min_power}W and {self.max_power}W, got {self.received_value}W"
 
+	def get_run_string(self) -> str:
+		return f"Checking if power usage is between {self.min_power}W and {self.max_power}W ..."
 
 
 class SwitchStateChecker(ServiceDataChecker):
@@ -106,58 +113,62 @@ class SwitchStateChecker(ServiceDataChecker):
 		self.received_dimmer_value = None
 		self.received_relay_value = None
 
-	def checkAdvertisement(self, scanData: ScanData) -> bool:
-		if scanData.payload.type not in [AdvType.CROWNSTONE_STATE, AdvType.SETUP_STATE]:
+	def check_advertisement(self, scan_data: ScanData) -> bool:
+		if scan_data.payload.type not in [AdvType.CROWNSTONE_STATE, AdvType.SETUP_STATE]:
 			return False
-		self.received_dimmer_value = scanData.payload.switchState.dimmer
-		self.received_relay_value = scanData.payload.switchState.relay
+		self.received_dimmer_value = scan_data.payload.switchState.dimmer
+		self.received_relay_value = scan_data.payload.switchState.relay
 		return (self.received_dimmer_value == self.expected_dimmer_value and self.received_relay_value == self.expected_relay_value)
 
-	def getErrorString(self) -> str:
+	def get_error_string(self) -> str:
 		return f"Expected dimmer value {self.expected_dimmer_value} and relay {self.expected_relay_value}, " \
 		       f"got dimmer {self.received_dimmer_value} and relay {self.received_relay_value}"
 
+	def get_run_string(self) -> str:
+		return f"Checking if dimmer value is {self.expected_dimmer_value} and relay is {self.expected_relay_value} ..."
 
 
 class ErrorStateChecker(ServiceDataChecker):
-	def __init__(self, address: str, errorBitmask: int):
+	def __init__(self, address: str, error_bitmask: int):
 		super().__init__(address)
-		self.expectedValue = errorBitmask
-		self.receivedValue = None
+		self.expected_value = error_bitmask
+		self.received_value = None
 
-	def checkAdvertisement(self, scanData: ScanData) -> bool:
-		if self.expectedValue == 0:
+	def check_advertisement(self, scan_data: ScanData) -> bool:
+		if self.expected_value == 0:
 			# We want to be sure there is _no_ error. This means the error type is likely not being advertised.
-			if scanData.payload.type in [AdvType.CROWNSTONE_ERROR, AdvType.SETUP_STATE]:
-				self.receivedValue = scanData.payload.errorsBitmask
-				return (scanData.payload.errorsBitmask == 0)
-			if scanData.payload.type == AdvType.CROWNSTONE_STATE:
-				return (scanData.payload.hasError == False)
+			if scan_data.payload.type in [AdvType.CROWNSTONE_ERROR, AdvType.SETUP_STATE]:
+				self.received_value = scan_data.payload.errorsBitmask
+				return (scan_data.payload.errorsBitmask == 0)
+			if scan_data.payload.type == AdvType.CROWNSTONE_STATE:
+				return (scan_data.payload.hasError == False)
 			return False
-		if scanData.payload.type in [AdvType.CROWNSTONE_ERROR, AdvType.SETUP_STATE]:
-			self.receivedValue = scanData.payload.errorsBitmask
-			return (self.receivedValue == self.expectedValue)
+		if scan_data.payload.type in [AdvType.CROWNSTONE_ERROR, AdvType.SETUP_STATE]:
+			self.received_value = scan_data.payload.errorsBitmask
+			return (self.received_value == self.expected_value)
 
-	def getErrorString(self) -> str:
-		return f"Expected error bitmask {self.expectedValue}, got {self.receivedValue}"
+	def get_error_string(self) -> str:
+		return f"Expected error bitmask {self.expected_value}, got {self.received_value}"
 
+	def get_run_string(self) -> str:
+		return f"Checking if error bitmask is {self.expected_value} ..."
 
 
 class DimmerReadyChecker(ServiceDataChecker):
-	def __init__(self, address: str, dimmerReady: bool):
+	def __init__(self, address: str, dimmer_ready: bool):
 		super().__init__(address)
 		self.default_timeout = 70
-		self.expectedValue = dimmerReady
-		self.receivedValue = None
+		self.expected_value = dimmer_ready
+		self.received_value = None
 
-	def checkAdvertisement(self, scanData: ScanData) -> bool:
-		if scanData.payload.type not in [AdvType.CROWNSTONE_STATE, AdvType.SETUP_STATE, AdvType.CROWNSTONE_ERROR]:
+	def check_advertisement(self, scan_data: ScanData) -> bool:
+		if scan_data.payload.type not in [AdvType.CROWNSTONE_STATE, AdvType.SETUP_STATE, AdvType.CROWNSTONE_ERROR]:
 			return False
-		self.receivedValue = scanData.payload.flags.dimmerReady
-		return (self.receivedValue == self.expectedValue)
+		self.received_value = scan_data.payload.flags.dimmerReady
+		return (self.received_value == self.expected_value)
 
-	def getErrorString(self) -> str:
-		return f"Expected dimmer ready to be {self.expectedValue}, got {self.receivedValue}"
+	def get_error_string(self) -> str:
+		return f"Expected dimmer ready to be {self.expected_value}, got {self.received_value}"
 
 
 
@@ -168,13 +179,13 @@ class ChipTempChecker(ServiceDataChecker):
 		self.chip_temp_max = chip_temp_max
 		self.received_value = None
 
-	def checkAdvertisement(self, scanData: ScanData) -> bool:
-		if scanData.payload.type not in [AdvType.CROWNSTONE_STATE, AdvType.SETUP_STATE, AdvType.CROWNSTONE_ERROR]:
+	def check_advertisement(self, scan_data: ScanData) -> bool:
+		if scan_data.payload.type not in [AdvType.CROWNSTONE_STATE, AdvType.SETUP_STATE, AdvType.CROWNSTONE_ERROR]:
 			return False
-		self.received_value = scanData.payload.temperature
+		self.received_value = scan_data.payload.temperature
 		return (self.chip_temp_min <= self.received_value <= self.chip_temp_max)
 
-	def getErrorString(self) -> str:
+	def get_error_string(self) -> str:
 		return f"Expected dimmer ready to be {self.expectedValue}, got {self.received_value}"
 
 
@@ -210,6 +221,7 @@ broken_crownstone_ibeacon_minor = crownstone_ibeacon_minor + 1
 def user_action_request(text: str):
 	a = input(text + "\n<press enter when done>")
 
+
 async def current_fuse_no_false_positive(dim_value=100, load_min=120, load_max=150):
 	await DimmerReadyChecker(args.crownstone_address, True).run()
 	await core.connect(args.crownstone_address)
@@ -227,6 +239,7 @@ async def current_fuse_no_false_positive(dim_value=100, load_min=120, load_max=1
 		user_action_request("Call the phone.")
 		await ErrorStateChecker(args.crownstone_address, 0).run()
 		await asyncio.sleep(1 * 60)
+
 
 async def current_fuse_overload_dimmer(dim_value=100, load_min=300, load_max=500):
 	await DimmerReadyChecker(args.crownstone_address, True).run()
@@ -258,15 +271,11 @@ async def current_fuse_overload_dimmer(dim_value=100, load_min=300, load_max=500
 	await core.control.allowDimming(True)
 	await core.control.setDimmer(dim_value)
 
-	# Relay should still be turned on, and dimmer turned off.
-	switch_state = await core.state.getSwitchState()
-	if switch_state.dimmer != 0 or switch_state.relay != True:
-		raise Exception(f"Switch state is {switch_state}")
-
 	await core.disconnect()
 
 	# Relay should still be turned on, and dimmer turned off.
 	await SwitchStateChecker(args.crownstone_address, 0, True).run()
+
 
 async def chip_temperature():
 	await DimmerReadyChecker(args.crownstone_address, True).run()
@@ -274,7 +283,7 @@ async def chip_temperature():
 	await core.control.setRelay(True)
 	await core.control.allowDimming(True)
 	await core.control.setDimmer(0)
-	await core.control.lockSwitch()
+	await core.control.lockSwitch(True)
 	await core.disconnect()
 	await SwitchStateChecker(args.crownstone_address, 0, True).run()
 	user_action_request(f"Heat up the chip, by blowing hot air on it.")
@@ -290,17 +299,101 @@ async def chip_temperature():
 	await SwitchStateChecker(args.crownstone_address, 0, False).run()
 
 	await core.connect(args.crownstone_address)
+	await core.control.lockSwitch(False)
 	await core.control.setRelay(True)
-
-	# Relay should still be turned off, and dimmer turned off.
-	switch_state = await core.state.getSwitchState()
-	if switch_state.dimmer != 0 or switch_state.relay != False:
-		raise Exception(f"Switch state is {switch_state}")
-
+	await core.control.allowDimming(True)
+	await core.control.setDimmer(0)
 	await core.disconnect()
 
-	# Relay should still be turned off, and dimmer turned off.
 	await SwitchStateChecker(args.crownstone_address, 0, False).run()
+
+
+current_threshold_dimmer_set = False
+async def dimmer_temperature_init():
+	await DimmerReadyChecker(args.crownstone_address, True).run()
+
+	global current_threshold_dimmer_set
+	if not current_threshold_dimmer_set:
+		await core.connect(args.crownstone_address)
+		await core._dev.setCurrentThresholdDimmer(16)
+		await core.control.allowDimming(True)
+		await core.control.reset()
+		await core.disconnect()
+
+		# Wait for reboot
+		await asyncio.sleep(3)
+
+	await core.connect(args.crownstone_address)
+	current_threshold = await core._dev.getCurrentThresholdDimmer()
+	if (current_threshold != 16.0):
+		raise Exception(f"Current threshold is {current_threshold}")
+	current_threshold_dimmer_set = True
+	# await core.disconnect()
+
+async def dimmer_temperature_holds():
+	await dimmer_temperature_init()
+
+	await core.connect(args.crownstone_address)
+	await core.control.setRelay(False)
+	await core.control.allowDimming(True)
+	await core.control.setDimmer(100)
+	await core.control.lockSwitch(True)
+	await core.disconnect()
+
+	await SwitchStateChecker(args.crownstone_address, 100, False).run()
+
+	load_min = 200
+	load_max = 250
+	user_action_request(f"Plug in a load of {load_min}W - {load_max}W.")
+	await PowerUsageChecker(args.crownstone_address, load_min, load_max).run()
+
+	print("Wait for 5 minutes")
+	await asyncio.sleep(5 * 60)
+
+	await ErrorStateChecker(args.crownstone_address, 0).run()
+
+async def dimmer_temperature_overloads():
+	await dimmer_temperature_init()
+
+	await core.connect(args.crownstone_address)
+	await core.control.setRelay(False)
+	await core.control.allowDimming(True)
+	await core.control.setDimmer(100)
+	await core.control.lockSwitch(True)
+	await core.disconnect()
+
+	await SwitchStateChecker(args.crownstone_address, 100, False).run()
+
+	load_min = 300
+	load_max = 500
+	user_action_request(f"Plug in a load of {load_min}W - {load_max}W.")
+	await PowerUsageChecker(args.crownstone_address, load_min, load_max).run()
+
+	print(f"Waiting for dimmer temperature to rise ...")
+	# Expected error: dimmer temp overload
+	error_bitmask = 1 << 3
+	await ErrorStateChecker(args.crownstone_address, error_bitmask).run(5 * 60)
+
+	await SwitchStateChecker(args.crownstone_address, 0, True).run()
+
+	await core.connect(args.crownstone_address)
+	await core.control.setRelay(False)
+
+	dimming_allowed = await core.state.getDimmingAllowed()
+	if dimming_allowed:
+		raise Exception(f"Dimming allowed is {dimming_allowed}")
+
+	await core.control.allowDimming(True)
+	await core.control.setDimmer(100)
+
+	# Relay should still be turned on, and dimmer turned off.
+	switch_state = await core.state.getSwitchState()
+	if switch_state.dimmer != 0 or switch_state.relay == False:
+		raise Exception(f"Switch state is {switch_state}")
+
+	await core.control.commandFactoryReset()
+
+	await core.disconnect()
 
 
 async def main():
@@ -318,6 +411,17 @@ async def main():
 
 	await current_fuse_overload_dimmer(100, 300, 500)
 	await current_fuse_overload_dimmer(100, 2000, 3000)
+
+	await chip_temperature()
+
+	print("Wait for chip to cool off")
+	await ChipTempChecker(args.crownstone_address, 0, 50).run(1 * 60)
+	await core.connect(args.crownstone_address)
+	await core.control.commandFactoryReset()
+	await core.disconnect()
+	await chip_temperature()
+
+
 
 	await core.shutDown()
 
