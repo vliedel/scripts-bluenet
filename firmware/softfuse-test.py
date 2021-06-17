@@ -221,8 +221,36 @@ broken_crownstone_ibeacon_minor = crownstone_ibeacon_minor + 1
 def user_action_request(text: str):
 	a = input(text + "\n<press enter when done>")
 
+async def factory_reset(address: str):
+	"""
+	Perform factory reset if the stone is in normal mode.
+	"""
+	op_mode = await core.getMode(address)
+	if op_mode == CrownstoneOperationMode.NORMAL:
+		print("Crownstone is in normal mode, attempting to factory reset ...")
+		await core.connect(address)
+		await core.control.commandFactoryReset()
+		await core.disconnect()
+		await asyncio.sleep(3.0)
+
+async def setup(address: str):
+	"""
+	Perform setup if the stone is in setup mode.
+	"""
+	op_mode = await core.getMode(address)
+	if op_mode == CrownstoneOperationMode.SETUP:
+		print("Crownstone is in setup mode, performing setup ...")
+		await core.setup.setup(address,
+	                       sphere_id,
+	                       crownstone_id,
+	                       crownstone_mesh_device_key,
+	                       ibeacon_uuid,
+	                       crownstone_ibeacon_major,
+	                       crownstone_ibeacon_minor)
+
 
 async def current_fuse_no_false_positive(dim_value=100, load_min=120, load_max=150):
+	await setup(args.crownstone_address)
 	await DimmerReadyChecker(args.crownstone_address, True).run()
 	await core.connect(args.crownstone_address)
 	print("Turn relay off")
@@ -242,6 +270,7 @@ async def current_fuse_no_false_positive(dim_value=100, load_min=120, load_max=1
 
 
 async def current_fuse_overload_dimmer(dim_value=100, load_min=300, load_max=500):
+	await setup(args.crownstone_address)
 	await DimmerReadyChecker(args.crownstone_address, True).run()
 	await core.connect(args.crownstone_address)
 	await core.control.setRelay(False)
@@ -277,7 +306,13 @@ async def current_fuse_overload_dimmer(dim_value=100, load_min=300, load_max=500
 	await SwitchStateChecker(args.crownstone_address, 0, True).run()
 
 
-async def chip_temperature():
+async def chip_temperature(setup_mode: bool):
+	if setup_mode:
+		await factory_reset(args.crownstone_address)
+	else:
+		await setup(args.crownstone_address)
+	print("Waiting for chip to cool off ...")
+	await ChipTempChecker(args.crownstone_address, 0, 50).run(1 * 60)
 	await DimmerReadyChecker(args.crownstone_address, True).run()
 	await core.connect(args.crownstone_address)
 	await core.control.setRelay(True)
@@ -310,6 +345,7 @@ async def chip_temperature():
 
 current_threshold_dimmer_set = False
 async def dimmer_temperature_init():
+	await setup(args.crownstone_address)
 	await DimmerReadyChecker(args.crownstone_address, True).run()
 
 	global current_threshold_dimmer_set
@@ -392,19 +428,12 @@ async def dimmer_temperature_overloads():
 		raise Exception(f"Switch state is {switch_state}")
 
 	await core.control.commandFactoryReset()
-
 	await core.disconnect()
 
 
 async def main():
-	op_mode = await core.getMode(args.crownstone_address)
-	if op_mode == CrownstoneOperationMode.NORMAL:
-		print("Crownstone is in normal mode, attempting to factory reset..")
-		await core.connect(args.crownstone_address)
-		await core.control.commandFactoryReset()
-		await core.disconnect()
-	await asyncio.sleep(1.0)
-	await core.setup.setup(args.crownstone_address, sphere_id, crownstone_id, crownstone_mesh_device_key, ibeacon_uuid, crownstone_ibeacon_major, crownstone_ibeacon_minor)
+	await factory_reset(args.crownstone_address)
+	await setup(args.crownstone_address)
 
 	await current_fuse_no_false_positive(100)
 	await current_fuse_no_false_positive(50)
@@ -412,16 +441,11 @@ async def main():
 	await current_fuse_overload_dimmer(100, 300, 500)
 	await current_fuse_overload_dimmer(100, 2000, 3000)
 
-	await chip_temperature()
+	await chip_temperature(False)
+	await chip_temperature(True)
 
-	print("Wait for chip to cool off")
-	await ChipTempChecker(args.crownstone_address, 0, 50).run(1 * 60)
-	await core.connect(args.crownstone_address)
-	await core.control.commandFactoryReset()
-	await core.disconnect()
-	await chip_temperature()
-
-
+	await dimmer_temperature_holds()
+	await dimmer_temperature_overloads()
 
 	await core.shutDown()
 
