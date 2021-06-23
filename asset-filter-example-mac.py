@@ -13,6 +13,7 @@ from crownstone_core.util import AssetFilterUtil
 from crownstone_core.util.AssetFilterUtil import get_filter_crc
 from crownstone_core.util.Cuckoofilter import CuckooFilter
 from crownstone_uart import CrownstoneUart
+import itertools
 
 from bluenet_logs import BluenetLogs
 
@@ -120,7 +121,7 @@ async def main():
 			buf = Conversion.address_to_uint8_array(a)
 			if not buf:
 				raise Exception(f"Invalid MAC: {a}")
-			macAddressesAsBytes.append(buf)
+			macAddressesAsBytes.append(list(buf))
 
 		if metadata.type == FilterType.CUCKOO:
 			# Create the cuckoo filter
@@ -138,7 +139,7 @@ async def main():
 		elif metadata.type == FilterType.EXACT_MATCH:
 			# Create the exact filter
 			exactFilter = ExactMatchFilterData(len(macAddressesAsBytes), 6)
-			exactFilter.itemArray.val = macAddressesAsBytes
+			exactFilter.itemArray.val = list(itertools.chain.from_iterable(macAddressesAsBytes))
 			filter.filterdata.val = exactFilter
 
 		else:
