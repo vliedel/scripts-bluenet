@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Example to upload a filter with MAC addresses.
+Example to remove all asset filters, and upload a filter with MAC addresses.
 """
 import math
 import argparse
@@ -67,7 +67,6 @@ async def main():
 		await uart.initialize_usb(port=args.device, writeChunkMaxSize=64)
 
 		filters = await uart.control.getFilterSummaries()
-		# print(filters)
 		masterVersion = filters.masterVersion.val
 
 		##############################################################################################
@@ -75,12 +74,9 @@ async def main():
 		##############################################################################################
 
 		print("Remove all filters")
-		# TODO: getting filter IDs doesn't work?
 		for f in filters.summaries.val:
 			print(f"    Remove id={f.filterId}")
 			await uart.control.removeFilter(f.filterId)
-		# for f in [0, 1]:
-		# 	await uart.control.removeFilter(f)
 
 		masterVersion += 1
 		filtersAndIds = []
@@ -117,7 +113,7 @@ async def main():
 		print(f"MACs={args.assetMacAddresses}")
 		macAddressesAsBytes = []
 		for a in args.assetMacAddresses:
-			print(f"Adding asset MAC {a} to filter")
+			print(f"Adding asset MAC {a} to filter.")
 			buf = Conversion.address_to_uint8_array(a)
 			if not buf:
 				raise Exception(f"Invalid MAC: {a}")
@@ -175,6 +171,7 @@ async def main():
 		print("Commit")
 		await uart.control.commitFilterChanges(masterVersion, masterCrc)
 		print("Done!")
+		print("Press ctrl-c to exit.")
 
 		# Simply keep the program running.
 		while True:
