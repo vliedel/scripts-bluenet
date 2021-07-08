@@ -47,7 +47,7 @@ class StateChecker:
 		self.option_wait_for_state_match = True
 
 	def handle_advertisement(self, scan_data: ScanData):
-		print(scan_data)
+		#print(scan_data)
 		if self.result == True:
 			# We already have the correct result.
 			return
@@ -76,7 +76,9 @@ class StateChecker:
 		return "Error"
 
 	# Function to be implemented by derived class.
-	def get_run_string(self) -> str:
+	def get_run_string(self, wait_for_state_match: bool) -> str:
+		if wait_for_state_match:
+			return "Waiting"
 		return "Checking"
 
 	async def check(self, timeout: int = None):
@@ -99,15 +101,15 @@ class StateChecker:
 		:param timeout_seconds:      Timeout in seconds.
 		:param wait_for_state_match: True to wait for the state to match the expected value. False to check if the first result matches the expected value.
 		"""
-		print(self.get_run_string())
+		print(self.get_run_string(wait_for_state_match))
 		self.option_wait_for_state_match = wait_for_state_match
 		subId = BleEventBus.subscribe(BleTopics.advertisement, self.handle_advertisement)
 		if timeout_seconds is None:
 			timeout_seconds = self.default_timeout
 
 		# Check via command first.
-		if core.ble.is_connected(self.address):
-			self.result = self.check_via_command()
+		if await core.ble.is_connected(self.address):
+			self.result = await self.check_via_command()
 			if self.result == True:
 				return
 			if self.result == False and not self.option_wait_for_state_match:
@@ -144,7 +146,9 @@ class PowerUsageChecker(StateChecker):
 	def get_error_string(self) -> str:
 		return f"Expected power usage between {self.min_power}W and {self.max_power}W, got {self.received_value}W"
 
-	def get_run_string(self) -> str:
+	def get_run_string(self, wait_for_state_match: bool) -> str:
+		if wait_for_state_match:
+			return f"Waiting for power usage to be between {self.min_power}W and {self.max_power}W ..."
 		return f"Checking if power usage is between {self.min_power}W and {self.max_power}W ..."
 
 
@@ -165,7 +169,7 @@ class SwitchStateChecker(StateChecker):
 		return (self.received_dimmer_value == self.expected_dimmer_value and self.received_relay_value == self.expected_relay_value)
 
 	async def check_via_command(self) -> bool or None:
-		switch_state = core.state.getSwitchState()
+		switch_state = await core.state.getSwitchState()
 		self.received_dimmer_value = switch_state.dimmer
 		self.received_relay_value = switch_state.relay
 		return (self.received_dimmer_value == self.expected_dimmer_value and self.received_relay_value == self.expected_relay_value)
@@ -174,7 +178,7 @@ class SwitchStateChecker(StateChecker):
 		return f"Expected dimmer value {self.expected_dimmer_value} and relay {self.expected_relay_value}, " \
 		       f"got dimmer {self.received_dimmer_value} and relay {self.received_relay_value}"
 
-	def get_run_string(self) -> str:
+	def get_run_string(self, wait_for_state_match: bool) -> str:
 		return f"Checking if dimmer value is {self.expected_dimmer_value} and relay is {self.expected_relay_value} ..."
 
 
@@ -205,7 +209,9 @@ class ErrorStateChecker(StateChecker):
 	def get_error_string(self) -> str:
 		return f"Expected error bitmask {self.expected_value}, got {self.received_value}"
 
-	def get_run_string(self) -> str:
+	def get_run_string(self, wait_for_state_match: bool) -> str:
+		if wait_for_state_match:
+			return f"Waiting for error bitmask to be {self.expected_value} ..."
 		return f"Checking if error bitmask is {self.expected_value} ..."
 
 
@@ -229,6 +235,11 @@ class DimmerReadyChecker(StateChecker):
 	def get_error_string(self) -> str:
 		return f"Expected dimmer ready to be {self.expected_value}, got {self.received_value}"
 
+	def get_run_string(self, wait_for_state_match: bool) -> str:
+		if wait_for_state_match:
+			return f"Waiting for dimmer ready to be {self.expected_value} ..."
+		return f"Checking if dimmer ready is {self.expected_value} ..."
+
 
 
 class ChipTempChecker(StateChecker):
@@ -249,7 +260,12 @@ class ChipTempChecker(StateChecker):
 		return (self.chip_temp_min <= self.received_value <= self.chip_temp_max)
 
 	def get_error_string(self) -> str:
-		return f"Expected dimmer ready to be {self.expectedValue}, got {self.received_value}"
+		return f"Expected chip temperature to be between {self.chip_temp_min} and {self.chip_temp_max}, got {self.received_value}"
+
+	def get_run_string(self, wait_for_state_match: bool) -> str:
+		if wait_for_state_match:
+			return f"Waiting for chip temperature to be between {self.chip_temp_min} and {self.chip_temp_max} ..."
+		return f"Checking if chip temperature is between {self.chip_temp_min} and {self.chip_temp_max} ..."
 
 
 
