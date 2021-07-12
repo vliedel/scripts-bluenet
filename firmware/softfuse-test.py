@@ -111,6 +111,7 @@ class StateChecker:
 		if await core.ble.is_connected(self.address):
 			self.result = await self.check_via_command()
 			if self.result == True:
+				print("Check passed via connection.")
 				return
 			if self.result == False and not self.option_wait_for_state_match:
 				raise Exception(self.get_error_string())
@@ -122,6 +123,7 @@ class StateChecker:
 			raise Exception(self.get_error_string())
 		if self.result is None:
 			raise Exception("Timeout")
+		print("Check passed via service data advertisement,")
 
 
 
