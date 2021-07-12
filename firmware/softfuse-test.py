@@ -28,7 +28,7 @@ argParser.add_argument('--adapterAddress',
                        '-a',
                        dest='adapter_address',
                        metavar='MAC address',
-                       type=int,
+                       type=str,
                        default=None,
                        help='Adapter MAC address of the bluetooth chip you want to use (linux only). You can get a list by running: hcitool dev')
 args = argParser.parse_args()
