@@ -197,7 +197,7 @@ class ErrorStateChecker(StateChecker):
 				self.received_value = scan_data.payload.errorsBitmask
 				return (scan_data.payload.errorsBitmask == 0)
 			if scan_data.payload.type == AdvType.CROWNSTONE_STATE:
-				return (scan_data.payload.hasError == False)
+				return (scan_data.payload.flags.hasError == False)
 			return None
 		if scan_data.payload.type in [AdvType.CROWNSTONE_ERROR, AdvType.SETUP_STATE]:
 			self.received_value = scan_data.payload.errorsBitmask
