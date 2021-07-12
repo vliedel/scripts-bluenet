@@ -122,6 +122,7 @@ class StateChecker:
 		if self.result == False:
 			raise Exception(self.get_error_string())
 		if self.result is None:
+			print(self.get_error_string())
 			raise Exception("Timeout")
 		print("Check passed via service data advertisement,")
 
@@ -402,7 +403,7 @@ async def reset_errors(address: str):
 
 
 
-async def dimmer_current_holds(dim_value=100, load_min=120, load_max=150):
+async def test_dimmer_current_holds(dim_value=100, load_min=120, load_max=160):
 	"""
 	Check if a high load on the dimmer, but within allowed specs, does not lead to an error.
 	:param dim_value: The dim value to use (0-100).
@@ -432,13 +433,14 @@ async def dimmer_current_holds(dim_value=100, load_min=120, load_max=150):
 
 
 
-async def dimmer_current_overload(dim_value=100, load_min=300, load_max=500):
+async def test_dimmer_current_overload(dim_value=100, load_min=300, load_max=500):
 	"""
 	Overload the dimmer (too much current), which should turn on the relay, and disable dimming.
 	:param dim_value: The dim value to use (0-100).
 	:param load_min:  The minimum load in Watt.
 	:param load_max:  The maximum load in Watt.
 	"""
+	print_title("Test overloading the dimmer.")
 	await setup()
 	await DimmerReadyChecker(args.crownstone_address, True).wait_for_state_match()
 	await core.connect(args.crownstone_address)
@@ -478,11 +480,12 @@ async def dimmer_current_overload(dim_value=100, load_min=300, load_max=500):
 	await core.disconnect()
 
 
-async def chip_temperature(setup_mode: bool):
+async def test_chip_temperature_overheat(setup_mode: bool):
 	"""
 	Overheat the chip, which should turn off the relay.
 	:param setup_mode: Whether to perform the test in setup mode.
 	"""
+	print_title("Test overheating the chip.")
 	if setup_mode:
 		await factory_reset(args.crownstone_address)
 	else:
@@ -544,13 +547,14 @@ async def dimmer_temperature_init():
 		await DimmerReadyChecker(args.crownstone_address, True).wait_for_state_match()
 	# await core.disconnect()
 
-async def dimmer_temperature_holds(load_min=200, load_max=250):
+async def test_dimmer_temperature_holds(load_min=200, load_max=250):
 	"""
 	Check if a high load on the dimmer (somewhat above the current threshold) does not lead to overheating it.
 	The current softfuse will be disabled for this test.
 	:param load_min:  The minimum load in Watt.
 	:param load_max:  The maximum load in Watt.
 	"""
+	print_title("Test if a high load on the dimmer does not lead to overheating it.")
 	await dimmer_temperature_init()
 
 	await core.connect(args.crownstone_address)
@@ -568,13 +572,14 @@ async def dimmer_temperature_holds(load_min=200, load_max=250):
 
 	await ErrorStateChecker(args.crownstone_address, 0).check()
 
-async def dimmer_temperature_overheat(load_min=300, load_max=500):
+async def test_dimmer_temperature_overheat(load_min=300, load_max=500):
 	"""
 	Overheat the dimmer, which should turn on the relay, and disable dimming.
 	The current softfuse will be disabled for this test.
 	:param load_min:  The minimum load in Watt to be used for this test.
 	:param load_max:  The maximum load in Watt.
 	"""
+	print_title("Test overheating the dimmer.")
 	await dimmer_temperature_init()
 
 	await core.connect(args.crownstone_address)
@@ -613,12 +618,13 @@ async def dimmer_temperature_overheat(load_min=300, load_max=500):
 	await core.disconnect()
 
 
-async def igbt_failure_holds(load_min=2500, load_max=3000):
+async def test_igbt_failure_holds(load_min=2500, load_max=3000):
 	"""
 	Check if power usage averaging does not lead to a false positive in IGBT on failure detection.
 	:param load_min:  The minimum load in Watt to be used for this test.
 	:param load_max:  The maximum load in Watt to be used for this test.
 	"""
+	print_title("Test if reboot or switching does not give a detected IGBT failure error.")
 	await setup()
 
 	# Make sure the load is plugged in.
@@ -656,13 +662,14 @@ async def igbt_failure_holds(load_min=2500, load_max=3000):
 		await ErrorStateChecker(args.crownstone_address, 0).check()
 
 
-async def igbt_failure(setup_mode: bool, load_min=400, load_max=500):
+async def test_igbt_failure(setup_mode: bool, load_min=400, load_max=500):
 	"""
 	Check if a broken IGBT, that is always one, will be detected.
 	:param setup_mode: Whether to perform the test in setup mode.
 	:param load_min:   The minimum load in Watt to be used for this test.
 	:param load_max:   The maximum load in Watt to be used for this test.
 	"""
+	print_title("Test IGBT failure detection.")
 	user_action_request(f"Plug in the crownstone with 1 broken IGBT.")
 	if setup_mode:
 		await factory_reset(args.broken_crownstone_address)
@@ -703,13 +710,14 @@ async def igbt_failure(setup_mode: bool, load_min=400, load_max=500):
 	await core.disconnect()
 
 
-async def chip_temp_and_igbt_failure(load_min=400, load_max=500):
+async def test_chip_overheat_and_igbt_failure(load_min=400, load_max=500):
 	"""
 	Tests if the dimmer soft fuse overrides the chip temp soft fuse.
 	A soft fuse turning the relay on overrides turning it off.
 	:param load_min:   The minimum load in Watt to be used for this test.
 	:param load_max:   The maximum load in Watt to be used for this test.
 	"""
+	print_title("Test chip overheating and IGBT failure at the same time.")
 	user_action_request(f"Plug in the crownstone with 1 broken IGBT.")
 	await setup(True)
 	await DimmerReadyChecker(args.crownstone_address, True).wait_for_state_match()
@@ -754,7 +762,8 @@ async def chip_temp_and_igbt_failure(load_min=400, load_max=500):
 	await core.disconnect()
 
 
-async def switch_lock_test():
+async def test_switch_lock():
+	print_title("Test switch lock.")
 	await setup()
 
 	await core.connect(args.crownstone_address)
@@ -771,21 +780,21 @@ async def main():
 	await factory_reset(args.crownstone_address)
 	await setup()
 
-	await dimmer_current_holds(100)
-	await dimmer_current_holds(50)
+	await test_dimmer_current_holds(100)
+	await test_dimmer_current_holds(50)
 
-	await dimmer_current_overload(100, 300, 500)
-	await dimmer_current_overload(100, 2000, 3000)
+	await test_dimmer_current_overload(100, 300, 500)
+	await test_dimmer_current_overload(100, 2000, 3000)
 
-	await chip_temperature(False)
-	await chip_temperature(True)
+	await test_chip_temperature_overheat(False)
+	await test_chip_temperature_overheat(True)
 
-	await dimmer_temperature_holds()
-	await dimmer_temperature_overheat()
+	await test_dimmer_temperature_holds()
+	await test_dimmer_temperature_overheat()
 
-	await igbt_failure_holds()
-	await igbt_failure(False)
-	await igbt_failure(True)
+	await test_igbt_failure_holds()
+	await test_igbt_failure(False)
+	await test_igbt_failure(True)
 
 
 	await core.shutDown()
