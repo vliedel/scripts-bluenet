@@ -420,7 +420,7 @@ async def dimmer_current_holds(dim_value=100, load_min=120, load_max=150):
 	await SwitchStateChecker(args.crownstone_address, dim_value, False).check()
 	await core.disconnect()
 	user_action_request(f"Plug in a load of {load_min}W - {load_max}W.")
-	await PowerUsageChecker(args.crownstone_address, int(load_min * 100 / dim_value), int(load_max * 100 / dim_value)).wait_for_state_match()
+	await PowerUsageChecker(args.crownstone_address, int(load_min * dim_value / 100), int(load_max * dim_value / 100)).wait_for_state_match()
 	await ErrorStateChecker(args.crownstone_address, 0).check()
 	user_action_request("Place a phone next to the crownstone.")
 	for i in range(0, 10):
