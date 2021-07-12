@@ -299,6 +299,11 @@ broken_crownstone_mesh_device_key = "mesh_device_key2"
 broken_crownstone_ibeacon_major = crownstone_ibeacon_major
 broken_crownstone_ibeacon_minor = crownstone_ibeacon_minor + 1
 
+def print_title(text: str):
+	print("=" * len(text))
+	print(text)
+	print("=" * len(text))
+
 def user_action_request(text: str):
 	a = input(text + "\n<press enter when done>")
 
@@ -404,10 +409,11 @@ async def dimmer_current_holds(dim_value=100, load_min=120, load_max=150):
 	:param load_min:  The minimum load in Watt.
 	:param load_max:  The maximum load in Watt.
 	"""
+	print_title("Test if dimmer gives no error for high load.")
 	await setup()
 	await DimmerReadyChecker(args.crownstone_address, True).wait_for_state_match()
 	await core.connect(args.crownstone_address)
-	print("Turn relay off")
+	print(f"Turn relay off, set dimmer at {dim_value}%")
 	await core.control.setRelay(False)
 	await core.control.allowDimming(True)
 	await core.control.setDimmer(dim_value)
@@ -420,6 +426,7 @@ async def dimmer_current_holds(dim_value=100, load_min=120, load_max=150):
 	for i in range(0, 10):
 		user_action_request("Call the phone.")
 		await ErrorStateChecker(args.crownstone_address, 0).check()
+		print("Waiting 1 minute ...")
 		await asyncio.sleep(1 * 60)
 
 
