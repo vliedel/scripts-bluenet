@@ -47,6 +47,9 @@ args = argParser.parse_args()
 if args.debug:
 	logging.basicConfig(format='%(asctime)s %(levelname)-7s: %(message)s', level=logging.DEBUG)
 
+class SoftfuseTestException(Exception):
+	pass
+
 class StateChecker:
 	"""
 	Base class for checking the state of a crownstone.
@@ -129,16 +132,16 @@ class StateChecker:
 				print("Check passed via connection.")
 				return
 			if self.result == False and not self.option_wait_for_state_match:
-				raise Exception(self.get_error_string())
+				raise SoftfuseTestException(self.get_error_string())
 
 		# Check via advertisements
 		await core.ble.scan(duration=timeout_seconds)
 		BleEventBus.unsubscribe(subId)
 		if self.result == False:
-			raise Exception(self.get_error_string())
+			raise SoftfuseTestException(self.get_error_string())
 		if self.result is None:
 			print(self.get_error_string())
-			raise Exception("Timeout")
+			raise SoftfuseTestException("Timeout")
 		print("Check passed via service data advertisement,")
 
 
@@ -483,7 +486,7 @@ async def test_dimmer_current_overload(dim_value=100, load_min=300, load_max=500
 
 	dimming_allowed = await core.state.getDimmingAllowed()
 	if dimming_allowed:
-		raise Exception(f"Dimming allowed is {dimming_allowed}")
+		raise SoftfuseTestException(f"Dimming allowed is {dimming_allowed}, should be {False}")
 
 	await core.control.allowDimming(True)
 	await core.control.setDimmer(dim_value)
@@ -557,7 +560,7 @@ async def dimmer_temperature_init():
 		await core.connect(args.crownstone_address)
 		current_threshold = await core._dev.getCurrentThresholdDimmer()
 		if (current_threshold != 16.0):
-			raise Exception(f"Current threshold is {current_threshold}")
+			raise SoftfuseTestException(f"Current threshold is {current_threshold}, should be 16.0")
 
 		await DimmerReadyChecker(args.crownstone_address, True).wait_for_state_match()
 	# await core.disconnect()
@@ -621,7 +624,7 @@ async def test_dimmer_temperature_overheat(load_min=300, load_max=500):
 
 	dimming_allowed = await core.state.getDimmingAllowed()
 	if dimming_allowed:
-		raise Exception(f"Dimming allowed is {dimming_allowed}")
+		raise SoftfuseTestException(f"Dimming allowed is {dimming_allowed}, should be {False}")
 
 	await core.control.allowDimming(True)
 	await core.control.setDimmer(100)
@@ -764,7 +767,7 @@ async def test_chip_overheat_and_igbt_failure(load_min=400, load_max=500):
 	# TODO: maybe we can use the switch history for this?
 	answer = user_question_options("Did you hear or see the relay turn off and on again?")
 	if not answer:
-		raise Exception("Relay did not turn off and on again.")
+		raise SoftfuseTestException("Relay did not turn off and on again.")
 
 	# Check if relay cannot be turned off, and dimmer not turned on.
 	await core.connect(args.broken_crownstone_address)
@@ -818,5 +821,7 @@ try:
 	# asyncio.run does not work here.
 	loop = asyncio.get_event_loop()
 	loop.run_until_complete(main())
+except SoftfuseTestException as e:
+	print(f"/!\ Test failed: {e}")
 except KeyboardInterrupt:
 	print("Closing the test.")
