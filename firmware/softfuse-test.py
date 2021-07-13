@@ -894,8 +894,21 @@ async def test_switch_lock(address: str):
 	print("Testing if relay remains off when locked.")
 	await set_switch(address, False, 0, False, True)
 	await set_switch_should_fail(address, True, 0, unlock_switch=False)
-	await set_switch_lock(address, False)
 
+	print("Testing if dimming allowed overrides switch lock.")
+	await set_switch_lock(address, True)
+	await set_allow_dimming(address, True)
+	await SwitchLockChecker(address, False).check()
+	await set_switch(address, False, 50)
+
+	print("Testing if you can't lock switch when dimming is allowed.")
+	await set_switch(address, False, 50, True, False)
+	await set_switch_lock(address, True, False)
+	await SwitchLockChecker(address, False).check()
+	await set_switch(address, False, 0)
+
+	await core.disconnect()
+	print_test_success()
 
 async def lib_test(address: str):
 	print_title("Test library.")
@@ -928,6 +941,8 @@ async def main():
 	await test_igbt_failure(args.broken_crownstone_address, False)
 	await test_igbt_failure(args.broken_crownstone_address, True)
 
+	await test_switch_lock(args.crownstone_address)
+	
 	await test_chip_overheat_and_igbt_failure(args.broken_crownstone_address)
 
 	await core.shutDown()
