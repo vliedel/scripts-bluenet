@@ -373,11 +373,17 @@ def print_title(text: str):
 	print(text)
 	print("=" * len(text))
 
+def print_test_success():
+	print("\o/ Test completed successfully.")
+	print("")
+
 def user_action_request(text: str):
-	a = input(text + "\n<press enter when done>")
+	print("")
+	a = input(f"-> {text} \n   <press enter when done>")
 
 def user_question(text: str) -> str:
-	a = input(text)
+	print("")
+	a = input(f"-> {text}")
 	return a
 
 class user_question_option:
@@ -413,16 +419,17 @@ def user_question_options(question: str, options: [user_question_option] = None,
 			option.matches = [str(i)]
 		i += 1
 
-	text = f"{question}\n  Please select:"
+	text = f"-> {question}\n    Please select:"
 	if explanation:
 		text += "\n"
 		for option in options:
-			text += f"    {option.matches[0]} {option.description}\n"
+			text += f"      {option.matches[0]} {option.description}\n"
 	else:
 		for option in options:
 			text += f" {option.matches[0]} /"
 		text = text[0:-2] + "\n"
 
+	print("")
 	answer = input(text)
 	for option in options:
 		if answer in option.matches:
