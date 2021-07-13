@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
+import logging
 from os import path
 import argparse
 
@@ -31,7 +32,20 @@ argParser.add_argument('--adapterAddress',
                        type=str,
                        default=None,
                        help='Adapter MAC address of the bluetooth chip you want to use (linux only). You can get a list by running: hcitool dev')
+argParser.add_argument('--verbose',
+                       '-v',
+                       dest='verbose',
+                       action='store_true',
+                       help='Verbose output')
+argParser.add_argument('--debug',
+                       '-d',
+                       dest='debug',
+                       action='store_true',
+                       help='Debug output')
 args = argParser.parse_args()
+
+if args.debug:
+	logging.basicConfig(format='%(asctime)s %(levelname)-7s: %(message)s', level=logging.DEBUG)
 
 class StateChecker:
 	"""
@@ -47,7 +61,8 @@ class StateChecker:
 		self.option_wait_for_state_match = True
 
 	def handle_advertisement(self, scan_data: ScanData):
-		#print(scan_data)
+		if args.verbose:
+			print(scan_data)
 		if self.result == True:
 			# We already have the correct result.
 			return
