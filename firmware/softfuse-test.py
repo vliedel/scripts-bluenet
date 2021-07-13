@@ -155,7 +155,7 @@ class PowerUsageChecker(StateChecker):
 		self.received_value = None
 
 	async def check_via_command(self) -> bool or None:
-		self.received_value = core.state.getPowerUsage()
+		self.received_value = await core.state.getPowerUsage()
 		return (self.min_power <= self.received_value <= self.max_power)
 
 	def check_advertisement(self, scan_data: ScanData) -> bool or None:
@@ -196,11 +196,11 @@ class SwitchStateChecker(StateChecker):
 		return (self.received_dimmer_value == self.expected_dimmer_value and self.received_relay_value == self.expected_relay_value)
 
 	def get_error_string(self) -> str:
-		return f"Expected dimmer value {self.expected_dimmer_value} and relay {self.expected_relay_value}, " \
-		       f"got dimmer {self.received_dimmer_value} and relay {self.received_relay_value}"
+		return f"Expected dimmer value {self.expected_dimmer_value}% and relay {self.expected_relay_value}, " \
+		       f"got dimmer {self.received_dimmer_value}% and relay {self.received_relay_value}"
 
 	def get_run_string(self, wait_for_state_match: bool) -> str:
-		return f"Checking if dimmer value is {self.expected_dimmer_value} and relay is {self.expected_relay_value} ..."
+		return f"Checking if dimmer value is {self.expected_dimmer_value}% and relay is {self.expected_relay_value} ..."
 
 
 class ErrorStateChecker(StateChecker):
@@ -213,18 +213,18 @@ class ErrorStateChecker(StateChecker):
 		if self.expected_value == 0:
 			# We want to be sure there is _no_ error. This means the error type is likely not being advertised.
 			if scan_data.payload.type in [AdvType.CROWNSTONE_ERROR, AdvType.SETUP_STATE]:
-				self.received_value = scan_data.payload.errorsBitmask
-				return (scan_data.payload.errorsBitmask == 0)
+				self.received_value = scan_data.payload.errorsBitmask.bitMask
+				return (scan_data.payload.errorsBitmask.bitMask == 0)
 			if scan_data.payload.type == AdvType.CROWNSTONE_STATE:
 				return (scan_data.payload.flags.hasError == False)
 			return None
 		if scan_data.payload.type in [AdvType.CROWNSTONE_ERROR, AdvType.SETUP_STATE]:
-			self.received_value = scan_data.payload.errorsBitmask
+			self.received_value = scan_data.payload.errorsBitmask.bitMask
 			return (self.received_value == self.expected_value)
 		return None
 
 	async def check_via_command(self) -> bool or None:
-		self.received_value = core.state.getErrors().bitMask
+		self.received_value = await core.state.getErrors().bitMask
 		return (self.received_value == self.expected_value)
 
 	def get_error_string(self) -> str:
@@ -262,6 +262,56 @@ class DimmerReadyChecker(StateChecker):
 		return f"Checking if dimmer ready is {self.expected_value} ..."
 
 
+class SwitchLockChecker(StateChecker):
+	def __init__(self, address: str, switch_locked: bool):
+		super().__init__(address)
+		self.expected_value = switch_locked
+		self.received_value = None
+
+	def check_advertisement(self, scan_data: ScanData) -> bool or None:
+		if scan_data.payload.type not in [AdvType.CROWNSTONE_STATE, AdvType.SETUP_STATE, AdvType.CROWNSTONE_ERROR]:
+			return None
+		self.received_value = scan_data.payload.flags.switchLocked
+		return (self.received_value == self.expected_value)
+
+	async def check_via_command(self) -> bool or None:
+		self.received_value = await core.state.getSwitchLocked()
+		return (self.received_value == self.expected_value)
+
+	def get_error_string(self) -> str:
+		return f"Expected switch lock to be {self.expected_value}, got {self.received_value}"
+
+	def get_run_string(self, wait_for_state_match: bool) -> str:
+		if wait_for_state_match:
+			return f"Waiting for switch lock to be {self.expected_value} ..."
+		return f"Checking if switch lock is {self.expected_value} ..."
+
+
+class DimmingAllowedChecker(StateChecker):
+	def __init__(self, address: str, dimming_allowed: bool):
+		super().__init__(address)
+		self.expected_value = dimming_allowed
+		self.received_value = None
+
+	def check_advertisement(self, scan_data: ScanData) -> bool or None:
+		if scan_data.payload.type not in [AdvType.CROWNSTONE_STATE, AdvType.SETUP_STATE, AdvType.CROWNSTONE_ERROR]:
+			return None
+		self.received_value = scan_data.payload.flags.dimmingAllowed
+		return (self.received_value == self.expected_value)
+
+	async def check_via_command(self) -> bool or None:
+		self.received_value = await core.state.getDimmingAllowed()
+		return (self.received_value == self.expected_value)
+
+	def get_error_string(self) -> str:
+		return f"Expected dimming allowed to be {self.expected_value}, got {self.received_value}"
+
+	def get_run_string(self, wait_for_state_match: bool) -> str:
+		if wait_for_state_match:
+			return f"Waiting for dimming allowed to be {self.expected_value} ..."
+		return f"Checking if dimming allowed is {self.expected_value} ..."
+
+
 
 class ChipTempChecker(StateChecker):
 	def __init__(self, address: str, chip_temp_min: float, chip_temp_max: float):
@@ -277,7 +327,7 @@ class ChipTempChecker(StateChecker):
 		return (self.chip_temp_min <= self.received_value <= self.chip_temp_max)
 
 	async def check_via_command(self) -> bool or None:
-		self.received_value = core.state.getChipTemperature()
+		self.received_value = await core.state.getChipTemperature()
 		return (self.chip_temp_min <= self.received_value <= self.chip_temp_max)
 
 	def get_error_string(self) -> str:
