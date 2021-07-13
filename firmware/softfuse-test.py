@@ -446,7 +446,7 @@ async def factory_reset(address: str):
 	op_mode = await core.getMode(address)
 	if op_mode == CrownstoneOperationMode.NORMAL:
 		print("Crownstone is in normal mode, attempting to factory reset ...")
-		await core.connect(address)
+		await connect(address)
 		await core.control.commandFactoryReset()
 		await core.disconnect()
 		await asyncio.sleep(3.0)
@@ -467,145 +467,203 @@ async def setup(broken_crownstone = False):
 	                       crownstone_ibeacon_major if not broken_crownstone else broken_crownstone_ibeacon_major,
 	                       crownstone_ibeacon_minor if not broken_crownstone else broken_crownstone_ibeacon_minor)
 
+async def reset_config(broken_crownstone = False):
+	"""
+	Reset the config of the crownstone, by making sure a factory reset is performed.
+	"""
+	print("Resetting crownstone config ...")
+	address = args.crownstone_address if not broken_crownstone else args.broken_crownstone_address
+	op_mode = await core.getMode(address)
+	if op_mode == CrownstoneOperationMode.NORMAL:
+		await factory_reset(address)
+	else:
+		await setup(address)
+		await factory_reset(address)
+
 async def reset_errors(address: str):
 	"""
 	Reset errors and check if the errors are reset indeed.
 	"""
-	await core.connect(address)
+	await connect(address)
 	await core.control.resetErrors()
 	await ErrorStateChecker(address, 0).check()
 	await core.disconnect()
 
 
+async def connect(address: str):
+	connected = await core.ble.is_connected(address)
+	if connected:
+		# Already connected to this address.
+		return
+	connected = await core.ble.is_connected()
+	if connected:
+		raise Exception("Already connected to another device.")
+	print(f"Connecting to {address}")
+	await core.connect(address)
 
-async def test_dimmer_current_holds(dim_value=100, load_min=120, load_max=160):
+async def set_switch(address: str, relay_on: bool, dim_value: int, allow_dimming: bool = None, switch_lock: bool = None):
+	await connect(address)
+
+	if switch_lock == False:
+		await set_switch_lock(address, switch_lock)
+
+	if allow_dimming is not None:
+		await set_allow_dimming(address, allow_dimming)
+
+	relay_str = "on" if relay_on else "off"
+	print(f"Turning relay {relay_str}, setting dimmer at {dim_value}%.")
+	await core.control.setRelay(relay_on)
+	await core.control.setDimmer(dim_value)
+	await SwitchStateChecker(address, dim_value, relay_on).check()
+
+	if switch_lock == True:
+		# Don't check, since allow dimming overrides switch lock.
+		await set_switch_lock(address, switch_lock, False)
+
+async def set_switch_should_fail(address: str, relay_on: bool, dim_value: int, unlock_switch: bool = True):
+	relay_str = "on" if relay_on else "off"
+	print(f"Trying to set relay {relay_str}, and dimmer to {dim_value}. This should not be allowed.")
+	await connect(address)
+	switch_state_before = await core.state.getSwitchState()
+	if unlock_switch:
+		await set_switch_lock(address, False)
+	await set_allow_dimming(address, True)
+	await core.control.setRelay(relay_on)
+	await core.control.setDimmer(dim_value)
+	switch_value = dim_value
+	if relay_on:
+		switch_value = 100
+	await core.control.setSwitch(switch_value)
+	switch_state_after = await core.state.getSwitchState()
+	if switch_state_before.raw != switch_state_after.raw:
+		raise SoftfuseTestException(f"Switch state changed from {switch_state_before} to {switch_state_after}")
+
+async def set_allow_dimming(address: str, allow: bool):
+	print(f"Setting allow dimming {allow}.")
+	await connect(address)
+	await core.control.allowDimming(allow)
+	await DimmingAllowedChecker(address, allow).check()
+
+async def set_switch_lock(address: str, lock: bool, check: bool = True):
+	print(f"Setting switch lock {lock}.")
+	await connect(address)
+	await core.control.lockSwitch(lock)
+	if check:
+		await SwitchLockChecker(address, lock).check()
+
+
+
+
+
+
+async def test_dimmer_current_holds(address: str, dim_value=100, load_min=120, load_max=160):
 	"""
 	Check if a high load on the dimmer, but within allowed specs, does not lead to an error.
+	:param address:   MAC address of the Crownstone.
 	:param dim_value: The dim value to use (0-100).
 	:param load_min:  The minimum load in Watt.
 	:param load_max:  The maximum load in Watt.
 	"""
 	print_title("Test if dimmer gives no error for high load.")
 	await setup()
-	await DimmerReadyChecker(args.crownstone_address, True).wait_for_state_match()
-	await core.connect(args.crownstone_address)
-	print(f"Turn relay off, set dimmer at {dim_value}%")
-	await core.control.setRelay(False)
-	await core.control.allowDimming(True)
-	await core.control.setDimmer(dim_value)
-	await SwitchStateChecker(args.crownstone_address, dim_value, False).check()
+	await DimmerReadyChecker(address, True).wait_for_state_match()
+
+	await set_switch(address, False, dim_value, True)
 	await core.disconnect()
+
 	user_action_request(f"Plug in a load of {load_min}W - {load_max}W.")
-	await PowerUsageChecker(args.crownstone_address, int(load_min * dim_value / 100), int(load_max * dim_value / 100)).wait_for_state_match()
-	await ErrorStateChecker(args.crownstone_address, 0).check()
+	await PowerUsageChecker(address, int(load_min * dim_value / 100), int(load_max * dim_value / 100)).wait_for_state_match()
+	await ErrorStateChecker(address, 0).check()
 	user_action_request("Place a phone next to the crownstone.")
 	for i in range(0, 10):
 		user_action_request("Call the phone.")
-		await ErrorStateChecker(args.crownstone_address, 0).check()
+		await ErrorStateChecker(address, 0).check()
 		print("Waiting 1 minute ...")
 		await asyncio.sleep(1 * 60)
 
-
-
-
-async def test_dimmer_current_overload(dim_value=100, load_min=300, load_max=500):
+async def test_dimmer_current_overload(address: str, dim_value=100, load_min=300, load_max=500):
 	"""
 	Overload the dimmer (too much current), which should turn on the relay, and disable dimming.
+	:param address:   MAC address of the Crownstone.
 	:param dim_value: The dim value to use (0-100).
 	:param load_min:  The minimum load in Watt.
 	:param load_max:  The maximum load in Watt.
 	"""
 	print_title("Test overloading the dimmer.")
 	await setup()
-	await DimmerReadyChecker(args.crownstone_address, True).wait_for_state_match()
-	await core.connect(args.crownstone_address)
-	await core.control.setRelay(False)
-	await core.control.allowDimming(True)
-	await core.control.setDimmer(dim_value)
-	await core.control.lockSwitch(True)
-	await SwitchStateChecker(args.crownstone_address, dim_value, False).check()
+	await DimmerReadyChecker(address, True).wait_for_state_match()
+
+	await set_switch(address, False, dim_value, True, True)
 	await core.disconnect()
+
 	user_action_request(f"Plug in a load of {load_min}W - {load_max}W.")
 
 	# Expected error: current overload dimmer
 	error_bitmask = 1 << 1
-	await ErrorStateChecker(args.crownstone_address, error_bitmask).wait_for_state_match()
+	await ErrorStateChecker(address, error_bitmask).wait_for_state_match()
 
 	# Relay should be turned on.
-	await SwitchStateChecker(args.crownstone_address, 0, True).check()
+	await SwitchStateChecker(address, 0, True).check()
 
 	# Now we can check for the correct power usage.
-	await PowerUsageChecker(args.crownstone_address, load_min, load_max).check()
+	await PowerUsageChecker(address, load_min, load_max).check()
 
-	await core.connect(args.crownstone_address)
-	await core.control.lockSwitch(False)
-	await core.control.setRelay(False)
-
+	await connect(address)
+	print("Checking if dimming is disabled.")
 	dimming_allowed = await core.state.getDimmingAllowed()
 	if dimming_allowed:
 		raise SoftfuseTestException(f"Dimming allowed is {dimming_allowed}, should be {False}")
 
-	await core.control.allowDimming(True)
-	await core.control.setDimmer(dim_value)
+	await set_switch_should_fail(address, False, 100)
 
-	# Relay should still be turned on, and dimmer turned off.
-	await SwitchStateChecker(args.crownstone_address, 0, True).check()
-
-	await reset_errors(args.crownstone_address)
+	await reset_errors(address)
 	await core.disconnect()
 
 
-async def test_chip_temperature_overheat(setup_mode: bool):
+async def test_chip_temperature_overheat(address: str, setup_mode: bool):
 	"""
 	Overheat the chip, which should turn off the relay.
+	:param address:    MAC address of the Crownstone.
 	:param setup_mode: Whether to perform the test in setup mode.
 	"""
 	print_title("Test overheating the chip.")
 	if setup_mode:
-		await factory_reset(args.crownstone_address)
+		await factory_reset(address)
 	else:
 		await setup()
 	print("Waiting for chip to cool off ...")
-	await ChipTempChecker(args.crownstone_address, 0, 50).wait_for_state_match(1 * 60)
-	await DimmerReadyChecker(args.crownstone_address, True).wait_for_state_match()
-	await core.connect(args.crownstone_address)
-	await core.control.setRelay(True)
-	await core.control.allowDimming(True)
-	await core.control.setDimmer(0)
-	await core.control.lockSwitch(True)
-	await SwitchStateChecker(args.crownstone_address, 0, True).check()
+	await ChipTempChecker(address, 0, 50).wait_for_state_match(1 * 60)
+	await DimmerReadyChecker(address, True).wait_for_state_match()
+
+	await set_switch(address, True, 0, True, True)
 	await core.disconnect()
 
 	user_action_request(f"Heat up the chip, by blowing hot air on it.")
 
 	# Expected error: chip temp overload
 	error_bitmask = 1 << 2
-	await ErrorStateChecker(args.crownstone_address, error_bitmask).wait_for_state_match(5 * 60)
+	await ErrorStateChecker(address, error_bitmask).wait_for_state_match(5 * 60)
 
 	# Temperature should still be close to the threshold.
-	await ChipTempChecker(args.crownstone_address, 70, 76).check()
+	await ChipTempChecker(address, 70, 76).check()
 
 	# Relay should be turned off.
-	await SwitchStateChecker(args.crownstone_address, 0, False).check()
+	await SwitchStateChecker(address, 0, False).check()
 
-	await core.connect(args.crownstone_address)
-	await core.control.lockSwitch(False)
-	await core.control.setRelay(True)
-	await core.control.allowDimming(True)
-	await core.control.setDimmer(0)
-	await SwitchStateChecker(args.crownstone_address, 0, False).check()
-	await reset_errors(args.crownstone_address)
+	await set_switch_should_fail(address, True, 100)
+
+	await reset_errors(address)
 	await core.disconnect()
 
 
-async def dimmer_temperature_init():
+async def dimmer_temperature_init(address: str):
 	await setup()
-	await DimmerReadyChecker(args.crownstone_address, True).wait_for_state_match()
+	await DimmerReadyChecker(address, True).wait_for_state_match()
 
-	await core.connect(args.crownstone_address)
+	await connect(address)
 	current_threshold = await core._dev.getCurrentThresholdDimmer()
 	if (current_threshold != 16.0):
-		await core.connect(args.crownstone_address)
+		await connect(address)
 		await core._dev.setCurrentThresholdDimmer(16)
 		await core.control.allowDimming(True)
 		await core.control.reset()
@@ -614,88 +672,78 @@ async def dimmer_temperature_init():
 		# Wait for reboot
 		await asyncio.sleep(3)
 
-		await core.connect(args.crownstone_address)
+		await connect(address)
 		current_threshold = await core._dev.getCurrentThresholdDimmer()
 		if (current_threshold != 16.0):
 			raise SoftfuseTestException(f"Current threshold is {current_threshold}, should be 16.0")
 
-		await DimmerReadyChecker(args.crownstone_address, True).wait_for_state_match()
+		await DimmerReadyChecker(address, True).wait_for_state_match()
 	# await core.disconnect()
 
-async def test_dimmer_temperature_holds(load_min=200, load_max=250):
+async def test_dimmer_temperature_holds(address: str, load_min=200, load_max=250):
 	"""
 	Check if a high load on the dimmer (somewhat above the current threshold) does not lead to overheating it.
 	The current softfuse will be disabled for this test.
+	:param address:   MAC address of the Crownstone.
 	:param load_min:  The minimum load in Watt.
 	:param load_max:  The maximum load in Watt.
 	"""
 	print_title("Test if a high load on the dimmer does not lead to overheating it.")
-	await dimmer_temperature_init()
+	await dimmer_temperature_init(address)
 
-	await core.connect(args.crownstone_address)
-	await core.control.setRelay(False)
-	await core.control.allowDimming(True)
-	await core.control.setDimmer(100)
-	await SwitchStateChecker(args.crownstone_address, 100, False).check()
+	await set_switch(address, False, 100, True)
 	await core.disconnect()
 
 	user_action_request(f"Plug in a load of {load_min}W - {load_max}W.")
-	await PowerUsageChecker(args.crownstone_address, load_min, load_max).wait_for_state_match()
+	await PowerUsageChecker(address, load_min, load_max).wait_for_state_match()
 
 	print("Wait for 5 minutes")
 	await asyncio.sleep(5 * 60)
 
-	await ErrorStateChecker(args.crownstone_address, 0).check()
+	await ErrorStateChecker(address, 0).check()
+	print_test_success()
 
-async def test_dimmer_temperature_overheat(load_min=300, load_max=500):
+async def test_dimmer_temperature_overheat(address: str, load_min=300, load_max=500):
 	"""
 	Overheat the dimmer, which should turn on the relay, and disable dimming.
 	The current softfuse will be disabled for this test.
+	:param address:   MAC address of the Crownstone.
 	:param load_min:  The minimum load in Watt to be used for this test.
 	:param load_max:  The maximum load in Watt.
 	"""
 	print_title("Test overheating the dimmer.")
-	await dimmer_temperature_init()
+	await dimmer_temperature_init(address)
 
-	await core.connect(args.crownstone_address)
-	await core.control.setRelay(False)
-	await core.control.allowDimming(True)
-	await core.control.setDimmer(100)
-	await core.control.lockSwitch(True)
-	await SwitchStateChecker(args.crownstone_address, 100, False).check()
+	await set_switch(address, False, 100, True, True)
 	await core.disconnect()
 
 	user_action_request(f"Plug in a load of {load_min}W - {load_max}W.")
-	await PowerUsageChecker(args.crownstone_address, load_min, load_max).wait_for_state_match()
+	await PowerUsageChecker(address, load_min, load_max).wait_for_state_match()
 
 	print(f"Waiting for dimmer temperature to rise ...")
 	# Expected error: dimmer temp overload
 	error_bitmask = 1 << 3
-	await ErrorStateChecker(args.crownstone_address, error_bitmask).wait_for_state_match(5 * 60)
+	await ErrorStateChecker(address, error_bitmask).wait_for_state_match(5 * 60)
 
-	await SwitchStateChecker(args.crownstone_address, 0, True).check()
+	await SwitchStateChecker(address, 0, True).check()
 
-	await core.connect(args.crownstone_address)
-	await core.control.lockSwitch(False)
-	await core.control.setRelay(False)
+	await connect(address)
 
+	print("Checking if dimming is disabled.")
 	dimming_allowed = await core.state.getDimmingAllowed()
 	if dimming_allowed:
 		raise SoftfuseTestException(f"Dimming allowed is {dimming_allowed}, should be {False}")
 
-	await core.control.allowDimming(True)
-	await core.control.setDimmer(100)
-
-	# Relay should still be turned on, and dimmer turned off.
-	await SwitchStateChecker(args.crownstone_address, 0, True).check()
+	await set_switch_should_fail(address, False, 100)
 
 	await core.control.commandFactoryReset()
 	await core.disconnect()
+	print_test_success()
 
-
-async def test_igbt_failure_holds(load_min=2500, load_max=3000):
+async def test_igbt_failure_holds(address: str, load_min=2500, load_max=3000):
 	"""
 	Check if power usage averaging does not lead to a false positive in IGBT on failure detection.
+	:param address:   MAC address of the Crownstone.
 	:param load_min:  The minimum load in Watt to be used for this test.
 	:param load_max:  The maximum load in Watt to be used for this test.
 	"""
@@ -703,43 +751,44 @@ async def test_igbt_failure_holds(load_min=2500, load_max=3000):
 	await setup()
 
 	# Make sure the load is plugged in.
-	await core.connect(args.crownstone_address)
-	await core.control.setDimmer(0)
-	await core.control.setRelay(True)
+	await set_switch(address, True, 0)
 	await core.disconnect()
-	user_action_request(f"Plug in a load of {load_min}W - {load_max}W.")
-	await PowerUsageChecker(args.crownstone_address, load_min, load_max).wait_for_state_match()
 
-	# Check if the softfuse doesn't trigger right after turning off the switch.
+	user_action_request(f"Plug in a load of {load_min}W - {load_max}W.")
+	await PowerUsageChecker(address, load_min, load_max).wait_for_state_match()
+
+	print("Check if the softfuse doesn't trigger right after turning off the switch.")
 	for i in range(0, 5):
 		print(f"Check {i}")
-		await core.connect(args.crownstone_address)
+		await connect(address)
 		await core.control.setRelay(True)
 		print(f"Waiting ...")
 		await asyncio.sleep(10)
 		await core.control.setRelay(False)
-		await ErrorStateChecker(args.crownstone_address, 0).check()
+		await ErrorStateChecker(address, 0).check()
 		await core.disconnect()
 
 	# Make sure switch is off at boot.
-	await core.connect(args.crownstone_address)
+	await connect(address)
 	await core.control.setRelay(False)
-	await SwitchStateChecker(args.crownstone_address, 0, False).check()
+	await SwitchStateChecker(address, 0, False).check()
 	await core.disconnect()
 	print(f"Waiting for switch state to be stored ...")
 	await asyncio.sleep(10)
 
-	# Check if the softfuse doesn't trigger at boot.
+	print("Check if the softfuse doesn't trigger at boot.")
 	for i in range(0, 5):
 		user_action_request(f"Plug out (or power off) the crownstone. Keep the load plugged into the crownstone.")
 		await asyncio.sleep(3)
 		user_action_request(f"Plug in (or power on) the crownstone.")
-		await ErrorStateChecker(args.crownstone_address, 0).check()
+		await ErrorStateChecker(address, 0).check()
 
+	print_test_success()
 
-async def test_igbt_failure(setup_mode: bool, load_min=400, load_max=500):
+async def test_igbt_failure(address: str, setup_mode: bool, load_min=400, load_max=500):
 	"""
 	Check if a broken IGBT, that is always one, will be detected.
+	:param address:    MAC address of the Crownstone with broken IGBT.
 	:param setup_mode: Whether to perform the test in setup mode.
 	:param load_min:   The minimum load in Watt to be used for this test.
 	:param load_max:   The maximum load in Watt to be used for this test.
@@ -747,79 +796,73 @@ async def test_igbt_failure(setup_mode: bool, load_min=400, load_max=500):
 	print_title("Test IGBT failure detection.")
 	user_action_request(f"Plug in the crownstone with 1 broken IGBT.")
 	if setup_mode:
-		await factory_reset(args.broken_crownstone_address)
+		await factory_reset(address)
 	else:
 		await setup(True)
-	await DimmerReadyChecker(args.crownstone_address, True).wait_for_state_match()
+	await DimmerReadyChecker(address, True).wait_for_state_match()
 
 	# Check if power measurement works.
-	user_action_request(f"Plug in a load of {load_min}W - {load_max}W.")
-	await core.connect(args.broken_crownstone_address)
-	await core.control.setDimmer(0)
-	await core.control.setRelay(True)
-	await SwitchStateChecker(args.broken_crownstone_address, 0, True).check()
+	await set_switch(address, True, 0)
 	await core.disconnect()
-	await PowerUsageChecker(args.broken_crownstone_address, load_min, load_max).wait_for_state_match()
+
+	user_action_request(f"Plug in a load of {load_min}W - {load_max}W.")
+	await PowerUsageChecker(address, load_min, load_max).wait_for_state_match()
+
+	user_action_request(f"Plug out the load.")
+	await PowerUsageChecker(address, -10, 10).wait_for_state_match()
 
 	# Turn off relay, and check if error is reported and relay is turned on.
-	await core.connect(args.broken_crownstone_address)
-	await core.control.lockSwitch(True)
-	await core.control.setDimmer(0)
-	await core.control.setRelay(False)
-	await core.control.allowDimming(True)
+	await set_switch(address, False, 0, True, True)
 	await core.disconnect()
+
+	user_action_request(f"Plug in a load of {load_min}W - {load_max}W.")
+	await PowerUsageChecker(address, load_min, load_max).wait_for_state_match()
 
 	# Expected error: IGBT on failure
 	error_bitmask = 1 << 5
-	await ErrorStateChecker(args.broken_crownstone_address, error_bitmask).wait_for_state_match()
-	await SwitchStateChecker(args.broken_crownstone_address, 0, True).check()
+	await ErrorStateChecker(address, error_bitmask).wait_for_state_match()
+	await SwitchStateChecker(address, 0, True).check()
+
 
 	# Check if relay cannot be turned off, and dimmer not turned on.
-	await core.connect(args.broken_crownstone_address)
-	await core.control.lockSwitch(False)
-	await core.control.setDimmer(100)
-	await core.control.setRelay(False)
-	await SwitchStateChecker(args.broken_crownstone_address, 0, True).check()
+	await set_switch_should_fail(address, False, 100)
 
-	await reset_errors(args.broken_crownstone_address)
+	await reset_errors(address)
 	await core.disconnect()
+	print_test_success()
 
-
-async def test_chip_overheat_and_igbt_failure(load_min=400, load_max=500):
+async def test_chip_overheat_and_igbt_failure(address: str, load_min=400, load_max=500):
 	"""
 	Tests if the dimmer soft fuse overrides the chip temp soft fuse.
 	A soft fuse turning the relay on overrides turning it off.
+	:param address:    MAC address of the Crownstone with broken IGBT.
 	:param load_min:   The minimum load in Watt to be used for this test.
 	:param load_max:   The maximum load in Watt to be used for this test.
 	"""
 	print_title("Test chip overheating and IGBT failure at the same time.")
 	user_action_request(f"Plug in the crownstone with 1 broken IGBT.")
 	await setup(True)
-	await DimmerReadyChecker(args.crownstone_address, True).wait_for_state_match()
+	await DimmerReadyChecker(address, True).wait_for_state_match()
+
+	await set_switch(address, True, 0, True, True)
+	await core.disconnect()
 
 	# Check if power measurement works.
 	user_action_request(f"Plug in a load of {load_min}W - {load_max}W.")
-	await core.connect(args.broken_crownstone_address)
-	await core.control.allowDimming(True)
-	await core.control.setDimmer(0)
-	await core.control.setRelay(True)
-	await core.control.lockSwitch(False)
-	await SwitchStateChecker(args.broken_crownstone_address, 0, True).check()
-	await core.disconnect()
-	await PowerUsageChecker(args.broken_crownstone_address, load_min, load_max).wait_for_state_match()
+	await PowerUsageChecker(address, load_min, load_max).wait_for_state_match()
 
 	print("Waiting for chip to cool off ...")
-	await ChipTempChecker(args.broken_crownstone_address, 0, 50).wait_for_state_match(1 * 60)
+	await ChipTempChecker(address, 0, 50).wait_for_state_match(1 * 60)
 	user_action_request(f"Heat up the chip, by blowing hot air on it.")
 
 	print("Waiting for chip to heat up ...")
 	# Expected error: chip temp overload AND igbt failure
 	error_bitmask = 1 << 2
 	error_bitmask += 1 << 5
-	await ErrorStateChecker(args.broken_crownstone_address, error_bitmask).wait_for_state_match(5 * 60)
+	await ErrorStateChecker(address, error_bitmask).wait_for_state_match(5 * 60)
 
 	# Relay should be turned on.
-	await SwitchStateChecker(args.broken_crownstone_address, 0, True).check()
+	await SwitchStateChecker(address, 0, True).check()
 
 	# TODO: maybe we can use the switch history for this?
 	answer = user_question_options("Did you hear or see the relay turn off and on again?")
@@ -827,50 +870,65 @@ async def test_chip_overheat_and_igbt_failure(load_min=400, load_max=500):
 		raise SoftfuseTestException("Relay did not turn off and on again.")
 
 	# Check if relay cannot be turned off, and dimmer not turned on.
-	await core.connect(args.broken_crownstone_address)
-	await core.control.lockSwitch(False)
-	await core.control.setDimmer(100)
-	await core.control.setRelay(False)
-	await SwitchStateChecker(args.broken_crownstone_address, 0, True).check()
+	await set_switch_should_fail(address, False, 100)
 
-	await reset_errors(args.broken_crownstone_address)
+	await reset_errors(address)
 	await core.disconnect()
+	print_test_success()
 
-
-async def test_switch_lock():
+async def test_switch_lock(address: str):
 	print_title("Test switch lock.")
 	await setup()
 
-	await core.connect(args.crownstone_address)
-	await core.control.allowDimming(False)
-	await core.control.setDimmer(0)
-	await core.control.setRelay(True)
-	await core.control.lockSwitch(True)
+	print("Testing if relay remains on when locked.")
+	await set_switch(address, True, 0, False, True)
+	await core.disconnect() # Disconnect, so advertisement is checked.
+	await SwitchLockChecker(address, True).check()
 
-	await SwitchStateChecker(args.crownstone_address, 0, True).check()
+	await set_switch_should_fail(address, False, 0, unlock_switch=False)
+
+	await set_switch_lock(address, False)
+	await core.disconnect() # Disconnect, so advertisement is checked.
+	await SwitchLockChecker(address, False).check()
+
+	print("Testing if relay remains off when locked.")
+	await set_switch(address, False, 0, False, True)
+	await set_switch_should_fail(address, True, 0, unlock_switch=False)
+	await set_switch_lock(address, False)
+
+
+async def lib_test(address: str):
+	print_title("Test library.")
+	await set_switch(address, True, 0, False, True)
 	await core.disconnect()
 
+	await DimmerReadyChecker(address, True).wait_for_state_match()
+
+	await set_switch(address, False, 100, True, False)
+	await core.disconnect()
+
+	print_test_success()
 
 async def main():
-	await factory_reset(args.crownstone_address)
-	await setup()
+	await reset_config()
 
-	await test_dimmer_current_holds(100)
-	await test_dimmer_current_holds(50)
+	await test_dimmer_current_holds(args.crownstone_address, 100)
+	await test_dimmer_current_holds(args.crownstone_address, 50)
 
-	await test_dimmer_current_overload(100, 300, 500)
-	await test_dimmer_current_overload(100, 2000, 3000)
+	await test_dimmer_current_overload(args.crownstone_address, 100, 300, 500)
+	await test_dimmer_current_overload(args.crownstone_address, 100, 2000, 3000)
 
-	await test_chip_temperature_overheat(False)
-	await test_chip_temperature_overheat(True)
+	await test_chip_temperature_overheat(args.crownstone_address, False)
+	await test_chip_temperature_overheat(args.crownstone_address, True)
 
-	await test_dimmer_temperature_holds()
-	await test_dimmer_temperature_overheat()
+	await test_dimmer_temperature_holds(args.crownstone_address)
+	await test_dimmer_temperature_overheat(args.crownstone_address)
 
-	await test_igbt_failure_holds()
-	await test_igbt_failure(False)
-	await test_igbt_failure(True)
+	await test_igbt_failure_holds(args.crownstone_address)
+	await test_igbt_failure(args.broken_crownstone_address, False)
+	await test_igbt_failure(args.broken_crownstone_address, True)
 
+	await test_chip_overheat_and_igbt_failure(args.broken_crownstone_address)
 
 	await core.shutDown()
 
