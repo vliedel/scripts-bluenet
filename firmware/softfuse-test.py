@@ -879,6 +879,7 @@ async def test_chip_overheat_and_igbt_failure(address: str, load_min=400, load_m
 async def test_switch_lock(address: str):
 	print_title("Test switch lock.")
 	await setup()
+	await DimmerReadyChecker(address, True).wait_for_state_match()
 
 	print("Testing if relay remains on when locked.")
 	await set_switch(address, True, 0, False, True)
@@ -910,6 +911,127 @@ async def test_switch_lock(address: str):
 	await core.disconnect()
 	print_test_success()
 
+async def dimmer_boot_dimmed(address: str):
+	print("Checking if you can't use dimmer immediately after boot.")
+	await set_switch(address, False, 100, True, False)
+
+	load_min = 0
+	load_max = 20
+	user_action_request(f"Plug in a dimmable load of {load_min}W - {load_max}W.")
+	await PowerUsageChecker(address, load_min, load_max).check()
+
+	await set_switch(address, False, 10)
+	print("Waiting for switch state to be stored.")
+	await asyncio.sleep(10)
+
+	user_action_request(f"Plug out the crownstone.")
+	await asyncio.sleep(1)
+	user_action_request(f"Plug in the crownstone.")
+
+	print("Waiting for power check to be finished.")
+	await asyncio.sleep(5)
+
+	print("Checking if relay was turned on instead of dimmer.")
+	await SwitchStateChecker(address, 0, True).check()
+
+async def test_dimmer_boot(address: str):
+	print_title("Test dimmer boot.")
+	await setup()
+
+	# ====================================================================
+	await dimmer_boot_dimmed(address)
+
+	print("Checking if setting a dimmed value has no effect.")
+	await connect(address)
+	await core.control.setDimmer(10)
+	await SwitchStateChecker(address, 0, True).check()
+	await DimmerReadyChecker(address, False).check()
+	await core.disconnect()
+	await DimmerReadyChecker(address, False).check() # Also check service data.
+
+	print("Checking if changing the dim value has no effect either.")
+	await connect(address)
+	await core.control.setDimmer(15)
+	await SwitchStateChecker(address, 0, True).check()
+
+	print("Checking if dimmed value will be set once the dimmer is ready.")
+	await DimmerReadyChecker(address, True).wait_for_state_match()
+	await SwitchStateChecker(address, 15, False).check()
+
+	# ====================================================================
+	await dimmer_boot_dimmed(address)
+	print("Checking if stored dimmed value is not set once the dimmer is ready after boot.")
+	await DimmerReadyChecker(address, True).wait_for_state_match()
+	await SwitchStateChecker(address, 0, True).check()
+
+	# ====================================================================
+	print("Checking if you can use dimmer immediately after boot.")
+	await set_switch(address, False, 100, True, False)
+
+	load_min = 5
+	load_max = 10
+	user_action_request(f"Plug in a dimmable load of {load_min}W - {load_max}W.")
+	await PowerUsageChecker(address, load_min, load_max).check()
+
+	print("Waiting for switch state to be stored.")
+	await asyncio.sleep(10)
+
+	user_action_request(f"Plug out the crownstone.")
+	await asyncio.sleep(1)
+	user_action_request(f"Plug in the crownstone.")
+
+	print("Checking if dimmer stays turned on.")
+	for i in range(0, 20):
+		await SwitchStateChecker(address, 100, False).check()
+		await asyncio.sleep(3)
+
+	print_test_success()
+
+
+
+async def test_dimming_allowed(address: str):
+	print_title("Test dimming allowed.")
+	await setup()
+	await DimmerReadyChecker(address, True).wait_for_state_match()
+
+	print("Checking if setting dim value while dimming is not allowed, leads to relay being turned on.")
+	await set_switch(address, True, 0, False, False)
+	await connect(address)
+	await core.control.setSwitch(50)
+	await SwitchStateChecker(address, 0, True).check()
+	await core.control.setDimmer(100)
+	await SwitchStateChecker(address, 0, True).check()
+
+	# ==================================================================
+	print("Checking if setting dimming allowed to False, turns relay on.")
+	await set_switch(address, False, 100, True, True)
+
+	print("Checking if service data says dimming allowed is True.")
+	await core.disconnect()
+	await DimmingAllowedChecker(address, True).check()
+
+	await set_allow_dimming(address, False)
+	await SwitchStateChecker(address, 0, True).check()
+
+	print("Checking if service data says dimming allowed is False.")
+	await core.disconnect()
+	await DimmingAllowedChecker(address, False).check()
+
+	# ===================================================================
+	print("Checking if setting dimming allowed to False, turns relay on at boot.")
+	await set_switch(address, False, 100, True, True)
+	await set_allow_dimming(address, False)
+	await core.control.reset()
+	await core.disconnect()
+
+	print("Waiting for reboot...")
+	await asyncio.sleep(2)
+	await SwitchStateChecker(address, 0, True).check()
+
+	print_test_success()
+
+
+
 async def lib_test(address: str):
 	print_title("Test library.")
 	await set_switch(address, True, 0, False, True)
@@ -924,6 +1046,10 @@ async def lib_test(address: str):
 
 async def main():
 	await reset_config()
+
+	await test_switch_lock(args.crownstone_address)
+	await test_dimmer_boot(args.crownstone_address)
+	await test_dimming_allowed(args.crownstone_address)
 
 	await test_dimmer_current_holds(args.crownstone_address, 100)
 	await test_dimmer_current_holds(args.crownstone_address, 50)
@@ -941,8 +1067,6 @@ async def main():
 	await test_igbt_failure(args.broken_crownstone_address, False)
 	await test_igbt_failure(args.broken_crownstone_address, True)
 
-	await test_switch_lock(args.crownstone_address)
-	
 	await test_chip_overheat_and_igbt_failure(args.broken_crownstone_address)
 
 	await core.shutDown()
