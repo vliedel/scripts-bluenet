@@ -136,6 +136,8 @@ class StateChecker:
 				raise SoftfuseTestException(self.get_error_string())
 
 		# Check via advertisements
+		# First wait 1s, because service data is only updated every second.
+		await asyncio.sleep(1)
 		await core.ble.scan(duration=timeout_seconds)
 		BleEventBus.unsubscribe(subId)
 		if self.result == False:
@@ -478,7 +480,7 @@ async def reset_config(broken_crownstone = False):
 	if op_mode == CrownstoneOperationMode.NORMAL:
 		await factory_reset(address)
 	else:
-		await setup(address)
+		await setup()
 		await factory_reset(address)
 
 async def reset_errors(address: str):
@@ -914,6 +916,7 @@ async def test_switch_lock(address: str):
 
 async def dimmer_boot_dimmed(address: str):
 	print("Checking if you can't use dimmer immediately after boot.")
+	await DimmerReadyChecker(address, True).wait_for_state_match()
 	await set_switch(address, False, 100, True, False)
 
 	load_min = 0
