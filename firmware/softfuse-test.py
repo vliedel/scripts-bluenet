@@ -3,6 +3,7 @@ import asyncio
 import logging
 from os import path
 import argparse
+import traceback
 
 from crownstone_ble.core.container.ScanData import ScanData
 from crownstone_core.Enums import CrownstoneOperationMode
@@ -44,7 +45,7 @@ argParser.add_argument('--debug',
                        help='Debug output')
 args = argParser.parse_args()
 
-if args.debug:
+if args.verbose:
 	logging.basicConfig(format='%(asctime)s %(levelname)-7s: %(message)s', level=logging.DEBUG)
 
 class SoftfuseTestException(Exception):
@@ -64,7 +65,7 @@ class StateChecker:
 		self.option_wait_for_state_match = True
 
 	def handle_advertisement(self, scan_data: ScanData):
-		if args.verbose:
+		if args.debug:
 			print(scan_data)
 		if self.result == True:
 			# We already have the correct result.
@@ -142,7 +143,7 @@ class StateChecker:
 		if self.result is None:
 			print(self.get_error_string())
 			raise SoftfuseTestException("Timeout")
-		print("Check passed via service data advertisement,")
+		print("Check passed via service data advertisement.")
 
 
 
@@ -1076,6 +1077,11 @@ try:
 	loop = asyncio.get_event_loop()
 	loop.run_until_complete(main())
 except SoftfuseTestException as e:
+	print("---------------------------------------- Debug info --------------------------------------------------")
+	traceback.print_exc()
+	print("------------------------------------------------------------------------------------------------------")
+	print("")
+	print("")
 	print(f"/!\ Test failed: {e}")
 except KeyboardInterrupt:
 	print("Closing the test.")
