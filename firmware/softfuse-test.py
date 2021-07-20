@@ -725,7 +725,6 @@ async def test_chip_temperature_overheat(address: str, setup_mode: bool):
 
 async def dimmer_temperature_init(address: str):
 	await setup()
-	await DimmerReadyChecker(address, True).wait_for_state_match()
 
 	await connect(address)
 	current_threshold = await core._dev.getCurrentThresholdDimmer()
@@ -744,8 +743,9 @@ async def dimmer_temperature_init(address: str):
 		if (current_threshold != 16.0):
 			raise SoftfuseTestException(f"Current threshold is {current_threshold}, should be 16.0")
 
-		await DimmerReadyChecker(address, True).wait_for_state_match()
+	await DimmerReadyChecker(address, True).wait_for_state_match()
 	# await core.disconnect()
+
 
 async def test_dimmer_temperature_holds(address: str, load_min=200, load_max=250):
 	"""
@@ -768,6 +768,8 @@ async def test_dimmer_temperature_holds(address: str, load_min=200, load_max=250
 	await asyncio.sleep(5 * 60)
 
 	await ErrorStateChecker(address, 0).check()
+
+	await reset_config()
 	print_test_success()
 
 async def test_dimmer_temperature_overheat(address: str, load_min=300, load_max=500):
@@ -803,8 +805,7 @@ async def test_dimmer_temperature_overheat(address: str, load_min=300, load_max=
 
 	await set_switch_should_fail(address, False, 100)
 
-	await core.control.commandFactoryReset()
-	await core.disconnect()
+	await reset_config()
 	print_test_success()
 
 async def test_igbt_failure_holds(address: str, load_min=2500, load_max=3000):
@@ -1036,11 +1037,12 @@ async def test_dimmer_boot(address: str):
 	await SwitchStateChecker(address, 0, True).check()
 
 	# ====================================================================
+	await DimmerReadyChecker(address, True).wait_for_state_match()
 	logger.info("Checking if you can use dimmer immediately after boot.")
 	await set_switch(address, False, 100, True, False)
 
-	load_min = 5
-	load_max = 10
+	load_min = 10
+	load_max = 30
 	user_action_request(f"Plug in a dimmable load of {load_min}W - {load_max}W.")
 	await PowerUsageChecker(address, load_min, load_max).check()
 
