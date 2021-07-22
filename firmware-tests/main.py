@@ -172,8 +172,10 @@ async def main():
 		logger.info("=" * 30)
 		result = await test.run()
 		result_str = "passed" if result else "failed"
-		logger.info(f"Test {result_str}.")
-		result_file.writelines([f"{test.get_name()} {result_str}"])
+		logger.info("=" * 30)
+		logger.info(f"Test {test.get_name()} {result_str}.")
+		logger.info("=" * 30)
+		result_file.write(f"{test.get_name()} {result_str}\n")
 		state_set(test.get_name(), result)
 
 try:
