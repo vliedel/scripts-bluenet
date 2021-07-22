@@ -42,9 +42,9 @@ class BaseTest:
 			return True
 		except Exception as e:
 			# TODO: log instead of print
-			print("---------------------------------------- Debug info --------------------------------------------------")
-			traceback.print_exc()
-			print("------------------------------------------------------------------------------------------------------")
+			self.logger.error("---------------------------------------- Debug info --------------------------------------------------")
+			self.logger.exception("Exception:")
+			self.logger.error("------------------------------------------------------------------------------------------------------")
 			return False
 
 	async def _run(self):
