@@ -12,7 +12,7 @@ class TestIgbtFailureDetection(BleBaseTest):
 	def get_description(self) -> str:
 		return "Check if a broken IGBT, that is always one, will be detected."
 
-	async def _run(self):
+	async def _run_ble(self):
 		await self._run_with(False)
 		await self._run_with(True)
 
@@ -25,7 +25,7 @@ class TestIgbtFailureDetection(BleBaseTest):
 		await DimmerReadyChecker(self.state_checker_args, True).wait_for_state_match()
 
 		# Check if power measurement works.
-		await self.set_switch(True, 0)
+		await self.set_switch(True, 0, True, False)
 		await self.core.disconnect()
 
 		self.user_action_request(f"Plug in a load of {self.load_min}W - {self.load_max}W.")

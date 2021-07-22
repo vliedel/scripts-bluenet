@@ -40,7 +40,7 @@ class TestDimmerTemperatureHolds(HelperDimmerTemperature):
 	def get_description(self) -> str:
 		return "Check if a high load on the dimmer (somewhat above the current threshold) does not lead to overheating it."
 
-	async def _run(self):
+	async def _run_ble(self):
 		await self.dimmer_temperature_init()
 
 		await self.set_switch(False, 100, True)
@@ -54,7 +54,7 @@ class TestDimmerTemperatureHolds(HelperDimmerTemperature):
 
 		await ErrorStateChecker(self.state_checker_args, 0).check()
 
-		await self.reset_config()
+		# await self.reset_config()
 
 
 
@@ -67,7 +67,7 @@ class TestDimmerTemperatureOverheat(HelperDimmerTemperature):
 	def get_description(self) -> str:
 		return "Overheat the dimmer, which should turn on the relay, and disable dimming. The current-based softfuse will be disabled for this test."
 
-	async def _run(self):
+	async def _run_ble(self):
 		await self.dimmer_temperature_init()
 
 		await self.set_switch(False, 100, True, True)
@@ -92,5 +92,4 @@ class TestDimmerTemperatureOverheat(HelperDimmerTemperature):
 
 		await self.set_switch_should_fail(False, 100)
 
-		await self.reset_config()
-
+		# await self.reset_config()

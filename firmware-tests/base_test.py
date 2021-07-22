@@ -1,4 +1,5 @@
 import logging
+import traceback
 
 
 class BaseTestException(Exception):
@@ -10,7 +11,7 @@ class BaseTest:
 
 	A derived class should implement:
 	- get_description()
-	- run() or _run()
+	- _run()
 	"""
 	def __init__(self, logger: logging.Logger):
 		self.logger = logger
@@ -39,14 +40,20 @@ class BaseTest:
 		try:
 			await self._run()
 			return True
-		except:
+		except Exception as e:
+			# TODO: log instead of print
+			print("---------------------------------------- Debug info --------------------------------------------------")
+			traceback.print_exc()
+			print("------------------------------------------------------------------------------------------------------")
 			return False
 
 	async def _run(self):
 		"""
-		Run the test, raise error when it fails.
+		Run the test, raise exception when it fails.
+
+		To be implemented by derived class.
 		"""
-		raise BaseTestException("Not implemented")
+		raise BaseTestException("Not implemented: _run()")
 
 
 

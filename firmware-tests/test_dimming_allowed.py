@@ -8,7 +8,7 @@ class TestDimmingAllowed(BleBaseTest):
 	def get_description(self) -> str:
 		return "Test dimming allowed."
 
-	async def _run(self):
+	async def _run_ble(self):
 		await self.setup()
 		await DimmerReadyChecker(self.state_checker_args, True).wait_for_state_match()
 

@@ -8,7 +8,7 @@ class TestDimmerBoot(BleBaseTest):
 	def get_description(self) -> str:
 		return "Test dimmer boot."
 
-	async def _run(self):
+	async def _run_ble(self):
 		await self.setup()
 
 		# ====================================================================

@@ -8,7 +8,7 @@ class TestChipOverheat(BleBaseTest):
 	def get_description(self) -> str:
 		return "Overheat the chip, which should turn off the relay."
 
-	async def _run(self):
+	async def _run_ble(self):
 		await self._run_with(True)
 		await self._run_with(False)
 

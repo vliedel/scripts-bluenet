@@ -31,6 +31,18 @@ class BleBaseTest(BaseTest):
 		self.setup_args = args.setup_args
 		self.state_checker_args = StateCheckerArgs(self.core, self.address, self.logger)
 
+	async def _run(self):
+		await self.reset_config()
+		await self._run_ble()
+
+	async def _run_ble(self):
+		"""
+		Run the test, raise exception when it fails.
+
+		To be implemented by derived class.
+		"""
+		raise BaseTestException("Not implemented: _run_ble()")
+
 	async def factory_reset(self):
 		"""
 		Perform factory reset if the stone is in normal mode.
@@ -80,6 +92,10 @@ class BleBaseTest(BaseTest):
 		await self.core.disconnect()
 
 	async def connect(self):
+		"""
+		Connect to device.
+		Also works when already connected.
+		"""
 		connected = await self.core.ble.is_connected(self.address)
 		if connected:
 			# Already connected to this address.
@@ -91,6 +107,14 @@ class BleBaseTest(BaseTest):
 		await self.core.connect(self.address)
 
 	async def set_switch(self, relay_on: bool, dim_value: int, allow_dimming: bool = None, switch_lock: bool = None):
+		"""
+		Set switch, dimming allowed, and lock.
+		Checks if setting was successful.
+		:param relay_on:      Whether to turn on the relay.
+		:param dim_value:     Dim value as percentage.
+		:param allow_dimming: True or False to set allow dimming. None to leave it as it is.
+		:param switch_lock:   True or False to set switch lock. None to leave it as it is.
+		"""
 		await self.connect()
 
 		if switch_lock == False:
@@ -110,6 +134,12 @@ class BleBaseTest(BaseTest):
 			await self.set_switch_lock(switch_lock, False)
 
 	async def set_switch_should_fail(self, relay_on: bool, dim_value: int, unlock_switch: bool = True):
+		"""
+		Try setting the switch, but expect the switch state to remain unchanged.
+		:param relay_on:      Whether to turn on the relay.
+		:param dim_value:     Dim value as percentage.
+		:param unlock_switch: Whether to unlock the switch before setting the switch.
+		"""
 		relay_str = "on" if relay_on else "off"
 		self.logger.info(f"Trying to set relay {relay_str}, and dimmer to {dim_value}. This should not be allowed.")
 		await self.connect()
@@ -128,12 +158,21 @@ class BleBaseTest(BaseTest):
 			raise BaseTestException(f"Switch state changed from {switch_state_before} to {switch_state_after}")
 
 	async def set_allow_dimming(self, allow: bool):
+		"""
+		Set allow dimming, and check the result.
+		:param allow: True to allow dimming.
+		"""
 		self.logger.info(f"Setting allow dimming {allow}.")
 		await self.connect()
 		await self.core.control.allowDimming(allow)
 		await DimmingAllowedChecker(self.state_checker_args, allow).check()
 
 	async def set_switch_lock(self, lock: bool, check: bool = True):
+		"""
+		Set switch lock.
+		:param lock:  True to lock the switch.
+		:param check: True to check the result.
+		"""
 		self.logger.info(f"Setting switch lock {lock}.")
 		await self.connect()
 		await self.core.control.lockSwitch(lock)

@@ -3,12 +3,12 @@ from state_checker import *
 from ble_base_test import BleBaseTest, BleBaseTestArgs
 from base_test import BaseTestException
 
-class TestDimmerTemperatureOverload(BleBaseTest):
+class TestDimmerCurrentOverload(BleBaseTest):
 
 	def get_description(self) -> str:
 		return "Overload the dimmer (too much current), which should turn on the relay, and disable dimming."
 
-	async def _run(self):
+	async def _run_ble(self):
 		await self._run_with(100, 300, 500)
 		await self._run_with(100, 2000, 3000)
 

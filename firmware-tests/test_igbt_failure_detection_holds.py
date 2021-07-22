@@ -12,7 +12,7 @@ class TestIgbtFailureDetectionHolds(BleBaseTest):
 	def get_description(self) -> str:
 		return "Check if power usage averaging does not lead to a false positive in IGBT on failure detection."
 
-	async def _run(self):
+	async def _run_ble(self):
 		await self.setup()
 
 		# Make sure the load is plugged in.

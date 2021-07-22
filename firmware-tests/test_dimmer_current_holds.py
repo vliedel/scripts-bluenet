@@ -4,7 +4,7 @@ from ble_base_test import BleBaseTest, BleBaseTestArgs
 from base_test import BaseTestException
 
 
-class TestDimmerTemperatureHolds(BleBaseTest):
+class TestDimmerCurrentHolds(BleBaseTest):
 	def __init__(self, args: BleBaseTestArgs, load_min=120, load_max=160):
 		super().__init__(args)
 		self.load_min = load_min
@@ -13,7 +13,7 @@ class TestDimmerTemperatureHolds(BleBaseTest):
 	def get_description(self) -> str:
 		return "Check if a high load on the dimmer, but within allowed specs, does not lead to an error."
 
-	async def _run(self):
+	async def _run_ble(self):
 		await self._run_with(100)
 		await self._run_with(50)
 
@@ -29,7 +29,7 @@ class TestDimmerTemperatureHolds(BleBaseTest):
 		                        int(self.load_max * dim_value / 100)).wait_for_state_match()
 		await ErrorStateChecker(self.state_checker_args, 0).check()
 		self.user_action_request("Place a phone next to the crownstone.")
-		for i in range(0, 2):
+		for i in range(0, 10):
 			self.user_action_request("Call the phone.")
 			await ErrorStateChecker(self.state_checker_args, 0).check()
 			self.logger.info("Waiting 1 minute ...")
