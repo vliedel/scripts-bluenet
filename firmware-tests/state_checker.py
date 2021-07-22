@@ -90,9 +90,6 @@ class StateChecker:
 		"""
 		self.logger.info(self.get_run_string(wait_for_state_match))
 		self.option_wait_for_state_match = wait_for_state_match
-		subId = BleEventBus.subscribe(BleTopics.advertisement, self.handle_advertisement)
-		if timeout_seconds is None:
-			timeout_seconds = self.default_timeout
 
 		# Check via command first.
 		if await self.core.ble.is_connected(self.address):
@@ -103,9 +100,14 @@ class StateChecker:
 			if self.result == False and not self.option_wait_for_state_match:
 				raise StateCheckerException(self.get_error_string())
 
-		# Check via advertisements
 		# First wait 1s, because service data is only updated every second.
 		await asyncio.sleep(1)
+
+		if timeout_seconds is None:
+			timeout_seconds = self.default_timeout
+
+		# Check via advertisements
+		subId = BleEventBus.subscribe(BleTopics.advertisement, self.handle_advertisement)
 		await self.core.ble.scan(duration=timeout_seconds)
 		BleEventBus.unsubscribe(subId)
 		if self.result == False:
