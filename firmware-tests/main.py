@@ -1,7 +1,10 @@
 import argparse
 import asyncio
 import datetime
+import json
 import logging
+import os
+import traceback
 
 from crownstone_ble import CrownstoneBle
 
@@ -44,7 +47,7 @@ argParser.add_argument('--outputFilePrefix',
                        dest='output_file_prefix',
                        metavar='output file',
                        type=str,
-                       default=datetime.datetime.now().strftime("output_%Y-%m-%d"),
+                       default=datetime.datetime.now().strftime("output_%Y-%m-%d_%H:%M:%S"),
                        help='The prefix sof files to write the logs and state to.')
 argParser.add_argument('--verbose',
                        '-v',
@@ -67,7 +70,7 @@ log_date_format = '%Y-%m-%d %H:%M:%S'
 if args.verbose:
 	logging.basicConfig(format=log_format, level=logging.DEBUG, filename=log_file_name, datefmt=log_date_format)
 else:
-	logging.basicConfig(format=log_format, level=logging.WARNING, filename=log_file_name, datefmt=log_date_format)
+	logging.basicConfig(format=log_format, level=logging.INFO, filename=log_file_name, datefmt=log_date_format)
 
 # Also output to console, but with a simpler format, and no debug logs.
 console = logging.StreamHandler()
@@ -80,6 +83,29 @@ logging.getLogger('').addHandler(console)
 logger = logging.getLogger("firmware-tests")
 if args.debug:
 	logger.setLevel(logging.DEBUG)
+
+
+# Create the state file.
+state_file_name = args.output_file_prefix + ".json"
+state = {}
+if os.path.exists(state_file_name):
+	with open(state_file_name, 'r') as state_file:
+		try:
+			state = json.load(state_file)
+		except:
+			traceback.print_exc()
+			print("Failed to parse file", state_file_name)
+			exit(1)
+
+
+# Create the result file.
+result_file_name = args.output_file_prefix + "_result.txt"
+try:
+	result_file = open(result_file_name, 'w')
+except:
+	traceback.print_exc()
+	print("Failed to open file", result_file_name)
+	exit(1)
 
 
 # Create the BLE library instance.
@@ -113,19 +139,42 @@ broken_crownstone_args = BleBaseTestArgs(
 	logger,
 	broken_crownstone_setup_args)
 
-async def main():
-	await TestSwitchLock(ble_base_args).run()
-	await TestDimmerBoot(ble_base_args).run()
-	await TestDimmingAllowed(ble_base_args).run()
-	await TestDimmerCurrentHolds(ble_base_args).run()
-	await TestDimmerCurrentOverload(ble_base_args).run()
-	await TestChipOverheat(ble_base_args).run()
-	await TestDimmerTemperatureHolds(ble_base_args).run()
-	await TestDimmerTemperatureOverheat(ble_base_args).run()
-	await TestIgbtFailureDetectionHolds(ble_base_args).run()
+def state_set(key: str = None, val = None):
+	if key is not None:
+		state[key] = val
+	try:
+		state_file = open(state_file_name, 'w')
+		json.dump(state, state_file)
+		state_file.close()
+	except:
+		traceback.print_exc()
+		print("Failed to store state to file", state_file_name)
+		exit(1)
 
-	await TestIgbtFailureDetection(broken_crownstone_args).run()
-	await TestChipOverheatAndIgbtFailure(broken_crownstone_args).run()
+async def main():
+	tests_list = [
+		TestSwitchLock(ble_base_args),
+		TestDimmerBoot(ble_base_args),
+		TestDimmingAllowed(ble_base_args),
+		TestDimmerCurrentHolds(ble_base_args),
+		TestDimmerCurrentOverload(ble_base_args),
+		TestChipOverheat(ble_base_args),
+		TestDimmerTemperatureHolds(ble_base_args),
+		TestDimmerTemperatureOverheat(ble_base_args),
+		TestIgbtFailureDetectionHolds(ble_base_args),
+		TestIgbtFailureDetection(broken_crownstone_args),
+		TestChipOverheatAndIgbtFailure(broken_crownstone_args)
+	]
+	for test in tests_list:
+		logger.info("=" * 30)
+		logger.info(f"Run test: {test.get_name()}")
+		logger.info(f"{test.get_description()}")
+		logger.info("=" * 30)
+		result = await test.run()
+		result_str = "passed" if result else "failed"
+		logger.info(f"Test {result_str}.")
+		result_file.writelines([f"{test.get_name()} {result_str}"])
+		state_set(test.get_name(), result)
 
 try:
 	loop = asyncio.get_event_loop()
