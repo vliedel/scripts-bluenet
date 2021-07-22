@@ -22,7 +22,7 @@ class BaseTest:
 
 		Can be overridden by derived class.
 		"""
-		return self.__name__
+		return self.__class__.__name__
 
 	def get_description(self) -> str:
 		"""
@@ -63,7 +63,7 @@ class BaseTest:
 		"""
 		print("")
 		a = input(f"-> {text} \n   <press enter when done>")
-		self.logger.info(text)
+		self.logger.debug(text)
 
 	def user_question(self, text: str) -> str:
 		"""
@@ -71,7 +71,7 @@ class BaseTest:
 		"""
 		print("")
 		answer = input(f"-> {text}")
-		self.logger.info(f"{text} --> {answer}")
+		self.logger.debug(f"{text} --> {answer}")
 		return answer
 
 	class UserQuestionOption:
@@ -121,7 +121,7 @@ class BaseTest:
 		answer = input(text)
 		for option in options:
 			if answer in option.matches:
-				self.logger.info(f"{question} --> {option.return_value}")
+				self.logger.debug(f"{question} --> {option.return_value}")
 				return option.return_value
-		self.logger.info(f"{question} --> {default_return_value}")
+		self.logger.debug(f"{question} --> {default_return_value}")
 		return default_return_value
