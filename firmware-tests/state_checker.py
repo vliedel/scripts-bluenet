@@ -101,7 +101,7 @@ class StateChecker:
 				self.logger.info("Check passed via connection.")
 				return
 			if self.result == False and not self.option_wait_for_state_match:
-				raise BleStateCheckerException(self.get_error_string())
+				raise StateCheckerException(self.get_error_string())
 
 		# Check via advertisements
 		# First wait 1s, because service data is only updated every second.
@@ -109,10 +109,10 @@ class StateChecker:
 		await self.core.ble.scan(duration=timeout_seconds)
 		BleEventBus.unsubscribe(subId)
 		if self.result == False:
-			raise BleStateCheckerException(self.get_error_string())
+			raise StateCheckerException(self.get_error_string())
 		if self.result is None:
 			self.logger.error(self.get_error_string())
-			raise BleStateCheckerException("Timeout")
+			raise StateCheckerException("Timeout")
 		self.logger.info("Check passed via service data advertisement.")
 
 
