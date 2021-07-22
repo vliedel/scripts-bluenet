@@ -9,7 +9,7 @@ class TestDimmerCurrentOverload(BleBaseTest):
 		return "Overload the dimmer (too much current), which should turn on the relay, and disable dimming."
 
 	async def _run_ble(self):
-		await self._run_with(100, 300, 500)
+		await self._run_with(100, 300, 400)
 		await self._run_with(100, 2000, 3000)
 
 	async def _run_with(self, dim_value: int, load_min: int, load_max: int):
