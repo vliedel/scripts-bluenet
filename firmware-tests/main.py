@@ -144,21 +144,32 @@ def state_set(key: str = None, val = None):
 		print("Failed to store state to file", state_file_name)
 		exit(1)
 
+async def run_test(t):
+	test = t(ble_base_args)
+	logger.info("=" * 30)
+	logger.info(f"Run test: {t.get_name()}")
+	logger.info(f"{t.get_description()}")
+	logger.info("=" * 30)
+	result = await test.run()
+	result_str = "passed" if result else "failed"
+	logger.info("=" * 30)
+	logger.info(f"Test {test.get_name()} {result_str}.")
+	logger.info("=" * 30)
+	result_file.write(f"{test.get_name()} {result_str}\n")
+	state_set(test.get_name(), result)
+
 async def main():
-	for t in tests_list:
-		if (config.tests is None) or (t.get_name() in config.tests):
-			test = t(ble_base_args)
-			logger.info("=" * 30)
-			logger.info(f"Run test: {t.get_name()}")
-			logger.info(f"{t.get_description()}")
-			logger.info("=" * 30)
-			result = await test.run()
-			result_str = "passed" if result else "failed"
-			logger.info("=" * 30)
-			logger.info(f"Test {test.get_name()} {result_str}.")
-			logger.info("=" * 30)
-			result_file.write(f"{test.get_name()} {result_str}\n")
-			state_set(test.get_name(), result)
+	if config.tests is not None:
+		test_name_list = []
+		for test_name in config.tests:
+			for test in tests_list:
+				if test.get_name() == test_name:
+					await run_test(test)
+					break
+	else:
+		for test in tests_list:
+			await run_test(test)
+
 
 try:
 	loop = asyncio.get_event_loop()
