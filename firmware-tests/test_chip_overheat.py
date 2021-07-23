@@ -5,7 +5,12 @@ from base_test import BaseTestException
 
 class TestChipOverheat(BleBaseTest):
 
-	def get_description(self) -> str:
+	@staticmethod
+	def get_name() -> str:
+		return __class__.__name__
+
+	@staticmethod
+	def get_description() -> str:
 		return "Overheat the chip, which should turn off the relay."
 
 	async def _run_ble(self):

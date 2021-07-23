@@ -4,36 +4,52 @@ import logging
 from crownstone_core.Enums import CrownstoneOperationMode
 from state_checker import *
 from base_test import BaseTest, BaseTestException
+from config import CrownstoneConfig, TestConfig
 from crownstone_ble import CrownstoneBle
 
-class BleBaseTestSetupArgs:
-	def __init__(self, crownstone_id: int, mesh_device_key: str, ibeacon_major: int, ibeacon_minor: int, sphere_id: int = 123, ibeacon_uuid: str = "1843423e-e175-4af0-a2e4-31e32f729a8a"):
-		self.crownstone_id = crownstone_id
-		self.mesh_device_key = mesh_device_key
-		self.ibeacon_major = ibeacon_major
-		self.ibeacon_minor = ibeacon_minor
-		self.sphere_id = sphere_id
-		self.ibeacon_uuid = ibeacon_uuid
-
 class BleBaseTestArgs:
-	def __init__(self, core: CrownstoneBle, address: str, logger: logging.Logger, setup_args: BleBaseTestSetupArgs):
-		self.core = core
-		self.address = address.lower()
+	def __init__(self, logger: logging.Logger, config: TestConfig, ble_adapter_address: str = None):
 		self.logger = logger
-		self.setup_args = setup_args
-
+		self.config = config
+		self.ble_adapter_address = ble_adapter_address
 
 class BleBaseTest(BaseTest):
+	# Search parameters for crownstone selection.
+	use_crownstone_with_broken_igbt = False
+
 	def __init__(self, args: BleBaseTestArgs):
 		super().__init__(args.logger)
-		self.core = args.core
-		self.address = args.address
-		self.setup_args = args.setup_args
+		self.config = args.config
+
+		self.logger.info(f'Initializing with adapter address={args.ble_adapter_address}')
+		self.core = CrownstoneBle(bleAdapterAddress=args.ble_adapter_address)
+		self.core.setSettings(
+			self.config.keys.admin,
+			self.config.keys.member,
+			self.config.keys.basic,
+			self.config.keys.service_data,
+			self.config.keys.localization,
+			self.config.keys.mesh_app,
+			self.config.keys.mesh_net
+		)
+
+		self.crownstone: CrownstoneConfig = None
+		for cs in self.config.crownstones:
+			if cs.igbt_broken == self.use_crownstone_with_broken_igbt:
+				self.crownstone = cs
+				break
+		if self.crownstone is None:
+			BaseTestException("No crownstone config found.")
+
+		self.address = self.crownstone.address
 		self.state_checker_args = StateCheckerArgs(self.core, self.address, self.logger)
+
+
 
 	async def _run(self):
 		await self.reset_config()
 		await self._run_ble()
+		await self.core.shutDown()
 
 	async def _run_ble(self):
 		"""
@@ -63,12 +79,12 @@ class BleBaseTest(BaseTest):
 		if op_mode == CrownstoneOperationMode.SETUP:
 			self.logger.info("Crownstone is in setup mode, performing setup ...")
 			await self.core.setup.setup(self.address,
-			                       self.setup_args.sphere_id,
-			                       self.setup_args.crownstone_id,
-			                       self.setup_args.mesh_device_key,
-			                       self.setup_args.ibeacon_uuid,
-			                       self.setup_args.ibeacon_major,
-			                       self.setup_args.ibeacon_minor)
+			                       self.config.sphere.id,
+			                       self.crownstone.id,
+			                       self.crownstone.mesh_device_key,
+			                       self.config.sphere.ibeacon_uuid,
+			                       self.crownstone.ibeacon_major,
+			                       self.crownstone.ibeacon_minor)
 
 	async def reset_config(self):
 		"""

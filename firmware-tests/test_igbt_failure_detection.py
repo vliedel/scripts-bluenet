@@ -4,12 +4,19 @@ from ble_base_test import BleBaseTest, BleBaseTestArgs
 from base_test import BaseTestException
 
 class TestIgbtFailureDetection(BleBaseTest):
+	use_crownstone_with_broken_igbt = True
+
 	def __init__(self, args: BleBaseTestArgs):
 		super().__init__(args)
 		self.load_min = 2500
 		self.load_max = 3000
 
-	def get_description(self) -> str:
+	@staticmethod
+	def get_name() -> str:
+		return __class__.__name__
+
+	@staticmethod
+	def get_description() -> str:
 		return "Check if a broken IGBT, that is always one, will be detected."
 
 	async def _run_ble(self):

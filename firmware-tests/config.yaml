@@ -1,0 +1,29 @@
+tests:
+    - TestSwitchLock
+    - TestDimmerBoot
+    - TestDimmingAllowed
+    - TestDimmerCurrentHolds
+    - TestDimmerCurrentOverload
+    - TestChipOverheat
+    - TestDimmerTemperatureHolds
+    - TestDimmerTemperatureOverheat
+    - TestIgbtFailureDetectionHolds
+    - TestIgbtFailureDetection
+    - TestChipOverheatAndIgbtFailure
+
+crownstones:
+    - name: builtin
+      mac_address: D5:50:33:D5:DA:CE
+      igbt_broken: false
+    - name: builtin-broken
+      mac_address: DC:98:9D:1D:E0:48
+      igbt_broken: true
+keys:
+    admin: adminKeyForCrown
+    member: memberKeyForHome
+    basic: basicKeyForOther
+    service_data: MyServiceDataKey
+    localization: aLocalizationKey
+    mesh_app: MyGoodMeshAppKey
+    mesh_net: MyGoodMeshNetKey
+

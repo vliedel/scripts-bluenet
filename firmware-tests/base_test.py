@@ -1,7 +1,6 @@
 import logging
 import traceback
 
-
 class BaseTestException(Exception):
 	pass
 
@@ -10,27 +9,31 @@ class BaseTest:
 	Base class for a test.
 
 	A derived class should implement:
+	- get_name()
 	- get_description()
 	- _run()
 	"""
 	def __init__(self, logger: logging.Logger):
 		self.logger = logger
 
-	def get_name(self) -> str:
+	@staticmethod
+	def get_name() -> str:
 		"""
 		Get the name of this test.
 
-		Can be overridden by derived class.
+		Should be overridden by derived class:
+		return __class__.__name__
 		"""
-		return self.__class__.__name__
+		raise BaseTestException("Not implemented: get_name()")
 
-	def get_description(self) -> str:
+	@staticmethod
+	def get_description() -> str:
 		"""
 		Get the description of this test.
 
 		Should be overridden by derived class.
 		"""
-		return "Base for test classes"
+		raise BaseTestException("Not implemented: get_description()")
 
 	async def run(self) -> bool:
 		"""

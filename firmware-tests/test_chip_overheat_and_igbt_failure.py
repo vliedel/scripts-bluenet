@@ -4,12 +4,19 @@ from ble_base_test import BleBaseTest, BleBaseTestArgs
 from base_test import BaseTestException
 
 class TestChipOverheatAndIgbtFailure(BleBaseTest):
+	use_crownstone_with_broken_igbt = True
+
 	def __init__(self, args: BleBaseTestArgs):
 		super().__init__(args)
 		self.load_min = 400
 		self.load_max = 500
 
-	def get_description(self) -> str:
+	@staticmethod
+	def get_name() -> str:
+		return __class__.__name__
+
+	@staticmethod
+	def get_description() -> str:
 		return "Tests if the dimmer soft fuse overrides the chip temp soft fuse. A soft fuse turning the relay on overrides turning it off."
 
 	async def _run_ble(self):

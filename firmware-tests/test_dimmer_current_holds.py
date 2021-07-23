@@ -10,7 +10,12 @@ class TestDimmerCurrentHolds(BleBaseTest):
 		self.load_min = load_min
 		self.load_max = load_max
 
-	def get_description(self) -> str:
+	@staticmethod
+	def get_name() -> str:
+		return __class__.__name__
+
+	@staticmethod
+	def get_description() -> str:
 		return "Check if a high load on the dimmer, but within allowed specs, does not lead to an error."
 
 	async def _run_ble(self):

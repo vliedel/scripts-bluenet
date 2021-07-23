@@ -4,8 +4,12 @@ from ble_base_test import BleBaseTest, BleBaseTestArgs
 from base_test import BaseTestException
 
 class TestDimmingAllowed(BleBaseTest):
+	@staticmethod
+	def get_name() -> str:
+		return __class__.__name__
 
-	def get_description(self) -> str:
+	@staticmethod
+	def get_description() -> str:
 		return "Test dimming allowed."
 
 	async def _run_ble(self):

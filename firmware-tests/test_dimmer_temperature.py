@@ -37,7 +37,12 @@ class TestDimmerTemperatureHolds(HelperDimmerTemperature):
 		self.load_min = load_min
 		self.load_max = load_max
 
-	def get_description(self) -> str:
+	@staticmethod
+	def get_name() -> str:
+		return __class__.__name__
+
+	@staticmethod
+	def get_description() -> str:
 		return "Check if a high load on the dimmer (somewhat above the current threshold) does not lead to overheating it."
 
 	async def _run_ble(self):
@@ -64,6 +69,11 @@ class TestDimmerTemperatureOverheat(HelperDimmerTemperature):
 		self.load_min = load_min
 		self.load_max = load_max
 
+	@staticmethod
+	def get_name() -> str:
+		return __class__.__name__
+
+	@staticmethod
 	def get_description(self) -> str:
 		return "Overheat the dimmer, which should turn on the relay, and disable dimming. The current-based softfuse will be disabled for this test."
 

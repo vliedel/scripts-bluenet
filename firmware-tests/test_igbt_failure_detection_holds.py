@@ -9,7 +9,12 @@ class TestIgbtFailureDetectionHolds(BleBaseTest):
 		self.load_min = 2500
 		self.load_max = 3000
 
-	def get_description(self) -> str:
+	@staticmethod
+	def get_name() -> str:
+		return __class__.__name__
+
+	@staticmethod
+	def get_description() -> str:
 		return "Check if power usage averaging does not lead to a false positive in IGBT on failure detection."
 
 	async def _run_ble(self):

@@ -6,7 +6,8 @@ import logging
 import os
 import traceback
 
-from crownstone_ble import CrownstoneBle
+from ble_base_test import *
+from config import load_config
 
 from test_chip_overheat import TestChipOverheat
 from test_chip_overheat_and_igbt_failure import TestChipOverheatAndIgbtFailure
@@ -19,22 +20,20 @@ from test_igbt_failure_detection import TestIgbtFailureDetection
 from test_igbt_failure_detection_holds import TestIgbtFailureDetectionHolds
 from test_switch_lock import TestSwitchLock
 
-from ble_base_test import *
-
 
 argParser = argparse.ArgumentParser(description="Interactive script for softfuse tests")
-argParser.add_argument('--crownstoneAddress',
-                       dest='crownstone_address',
-                       metavar='MAC address',
+argParser.add_argument('--list',
+                       '-l',
+                       dest='list',
+                       action='store_true',
+                       help='List all tests, and end the program.')
+argParser.add_argument('--config',
+                       '-c',
+                       dest='config_file',
+                       metavar='config file',
                        type=str,
-                       required=True,
-                       help='The MAC address of the Crownstone to test.')
-argParser.add_argument('--brokenCrownstoneAddress',
-                       dest='broken_crownstone_address',
-                       metavar='MAC address',
-                       type=str,
-                       required=True,
-                       help='The MAC address of the Crownstone with broken IGBT (always on) to test.')
+                       default='config.yaml',
+                       help='Configuration file.')
 argParser.add_argument('--adapterAddress',
                        '-a',
                        dest='adapter_address',
@@ -49,18 +48,39 @@ argParser.add_argument('--outputFilePrefix',
                        type=str,
                        default=datetime.datetime.now().strftime("output_%Y-%m-%d_%H:%M:%S"),
                        help='The prefix sof files to write the logs and state to.')
-argParser.add_argument('--verbose',
-                       '-v',
-                       dest='verbose',
-                       action='store_true',
-                       help='Verbose output')
 argParser.add_argument('--debug',
                        '-d',
                        dest='debug',
                        action='store_true',
-                       help='Debug output')
+                       help='Debug output.')
+argParser.add_argument('--verbose',
+                       '-v',
+                       dest='verbose',
+                       action='store_true',
+                       help='Verbose output.')
 args = argParser.parse_args()
 
+tests_list = [
+	TestSwitchLock,
+	TestDimmerBoot,
+	TestDimmingAllowed,
+	TestDimmerCurrentHolds,
+	TestDimmerCurrentOverload,
+	TestChipOverheat,
+	TestDimmerTemperatureHolds,
+	TestDimmerTemperatureOverheat,
+	TestIgbtFailureDetectionHolds,
+	TestIgbtFailureDetection,
+	TestChipOverheatAndIgbtFailure
+]
+
+if args.list:
+	for test in tests_list:
+		print(f"{test.get_name()}")
+	exit(0)
+
+
+config = load_config(args.config_file)
 
 # Setup the logger.
 log_file_name = args.output_file_prefix + ".log"
@@ -108,36 +128,9 @@ except:
 	exit(1)
 
 
-# Create the BLE library instance.
-logger.info(f'Initializing with adapter address={args.adapter_address}')
-core = CrownstoneBle(bleAdapterAddress=args.adapter_address)
-core.setSettings("adminKeyForCrown", "memberKeyForHome", "basicKeyForOther", "MyServiceDataKey", "aLocalizationKey", "MyGoodMeshAppKey", "MyGoodMeshNetKey")
+ble_base_args = BleBaseTestArgs(logger, config, args.adapter_address)
 
 
-# Fill required arguments.
-setup_args = BleBaseTestSetupArgs(
-	crownstone_id=230,
-	mesh_device_key="mesh_device_key1",
-	ibeacon_major=1234,
-	ibeacon_minor=5678)
-
-ble_base_args = BleBaseTestArgs(
-	core,
-	args.crownstone_address,
-	logger,
-	setup_args)
-
-broken_crownstone_setup_args = BleBaseTestSetupArgs(
-	crownstone_id=231,
-	mesh_device_key="mesh_device_key2",
-	ibeacon_major=1234,
-	ibeacon_minor=5679)
-
-broken_crownstone_args = BleBaseTestArgs(
-	core,
-	args.broken_crownstone_address,
-	logger,
-	broken_crownstone_setup_args)
 
 def state_set(key: str = None, val = None):
 	if key is not None:
@@ -152,36 +145,23 @@ def state_set(key: str = None, val = None):
 		exit(1)
 
 async def main():
-	tests_list = [
-		TestSwitchLock(ble_base_args),
-		TestDimmerBoot(ble_base_args),
-		TestDimmingAllowed(ble_base_args),
-		TestDimmerCurrentHolds(ble_base_args),
-		TestDimmerCurrentOverload(ble_base_args),
-		TestChipOverheat(ble_base_args),
-		TestDimmerTemperatureHolds(ble_base_args),
-		TestDimmerTemperatureOverheat(ble_base_args),
-		TestIgbtFailureDetectionHolds(ble_base_args),
-		TestIgbtFailureDetection(broken_crownstone_args),
-		TestChipOverheatAndIgbtFailure(broken_crownstone_args)
-	]
-	for test in tests_list:
-		logger.info("=" * 30)
-		logger.info(f"Run test: {test.get_name()}")
-		logger.info(f"{test.get_description()}")
-		logger.info("=" * 30)
-		result = await test.run()
-		result_str = "passed" if result else "failed"
-		logger.info("=" * 30)
-		logger.info(f"Test {test.get_name()} {result_str}.")
-		logger.info("=" * 30)
-		result_file.write(f"{test.get_name()} {result_str}\n")
-		state_set(test.get_name(), result)
+	for t in tests_list:
+		if (config.tests is None) or (t.get_name() in config.tests):
+			test = t(ble_base_args)
+			logger.info("=" * 30)
+			logger.info(f"Run test: {t.get_name()}")
+			logger.info(f"{t.get_description()}")
+			logger.info("=" * 30)
+			result = await test.run()
+			result_str = "passed" if result else "failed"
+			logger.info("=" * 30)
+			logger.info(f"Test {test.get_name()} {result_str}.")
+			logger.info("=" * 30)
+			result_file.write(f"{test.get_name()} {result_str}\n")
+			state_set(test.get_name(), result)
 
 try:
 	loop = asyncio.get_event_loop()
 	loop.run_until_complete(main())
 except KeyboardInterrupt:
 	print("Closing the test.")
-finally:
-	core.shutDown()
