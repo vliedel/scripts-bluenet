@@ -79,8 +79,7 @@ async def main():
 		await uart.initialize_usb(port=args.device, writeChunkMaxSize=64)
 
 		filterId = 0
-		filter = AssetFilter()
-		filter.setFilterId(filterId)
+		filter = AssetFilter(filterId)
 		filter.filterByMacAddress(["01:23:45:67:89:AB", "01:23:45:67:89:CD", "01:23:45:67:89:EF"])
 		filter.outputMacRssiReport()
 		filter.setProfileId(0)
@@ -90,9 +89,8 @@ async def main():
 		print("Filter CRC:", filter.getCrc())
 
 		filterId += 1
-		filter2 = AssetFilter()
-		filter2.setFilterId(filterId)
-		filter2.filterByNameWithWildcards("CR?N", complete=False)
+		filter2 = AssetFilter(filterId)
+		filter2.filterByNameWithWildcards("C?W*", complete=False)
 		filter2.outputAssetId().basedOnName()
 		filter2.setFilterType(FilterType.CUCKOO)
 		print(filter2)
