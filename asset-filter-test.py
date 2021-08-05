@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 
 """
-Client to show binary logs.
+Example to upload asset filters via UART or BLE.
 """
 import argparse
 import os
 import asyncio
 
+from crownstone_ble import CrownstoneBle
+from crownstone_core.packets.assetFilter.FilterCommandPackets import FilterSummariesPacket
 from crownstone_core.packets.assetFilter.FilterMetaDataPackets import FilterType
 from crownstone_core.packets.assetFilter.builders.AssetFilter import AssetFilter
 from crownstone_core.packets.assetFilter.util import AssetFilterMasterCrc
@@ -14,9 +16,10 @@ from crownstone_uart import CrownstoneUart
 
 from bluenet_logs import BluenetLogs
 
-import logging
-#logging.basicConfig(format='%(asctime)s %(levelname)-7s: %(message)s', level=logging.DEBUG)
+import sys
+print(sys.path)
 
+import logging
 
 defaultSourceFilesDir = os.path.abspath(f"{os.path.dirname(os.path.abspath(__file__))}/../source")
 
@@ -35,8 +38,23 @@ argParser.add_argument('--device',
                        type=str,
                        default=None,
                        help='The UART device to use, for example: /dev/ttyACM0')
+argParser.add_argument('--address',
+                       '-a',
+                       dest='address',
+                       type=str,
+                       default=None,
+                       help='The MAC address/handle of the Crownstone you want to connect to')
+argParser.add_argument('--verbose',
+                       '-v',
+                       dest='verbose',
+                       action='store_true',
+                       help='Verbose output.')
 args = argParser.parse_args()
 
+if args.verbose:
+	logging.basicConfig(format='%(asctime)s %(levelname)-7s: %(message)s', level=logging.DEBUG)
+else:
+	logging.basicConfig(format='%(asctime)s %(levelname)-7s: %(message)s', level=logging.INFO)
 
 
 sourceFilesDir = args.sourceFilesDir
@@ -51,35 +69,14 @@ bluenetLogs.setSourceFilesDir(sourceFilesDir)
 # Init the Crownstone UART lib.
 uart = CrownstoneUart()
 
+# Init the Crownstone BLE lib.
+ble = CrownstoneBle()
+
 async def main():
 	# The try except part is just to catch a control+c to gracefully stop the UART lib.
 	try:
 		print(f"Listening for logs and using files in \"{sourceFilesDir}\" to find the log formats.")
 		await uart.initialize_usb(port=args.device, writeChunkMaxSize=64)
-
-		filters = await uart.control.getFilterSummaries()
-		print(filters)
-		masterVersion = filters.masterVersion
-
-		##############################################################################################
-		##################################### Remove all filters #####################################
-		##############################################################################################
-
-		print("Remove all filters")
-		for f in filters.summaries:
-			print(f"    Remove id={f.id}")
-			await uart.control.removeFilter(f.id)
-
-		# masterVersion += 1
-		# filtersAndIds = []
-		# masterCrc = AssetFilterUtil.get_master_crc_from_filters(filtersAndIds)
-		# print("Master CRC:", masterCrc)
-		# print("Commit")
-		# await uart.control.commitFilterChanges(masterVersion, masterCrc)
-
-		#############################################################################################
-		##################################### Create new filter #####################################
-		#############################################################################################
 
 		filterId = 0
 		filter = AssetFilter()
@@ -95,7 +92,7 @@ async def main():
 		filterId += 1
 		filter2 = AssetFilter()
 		filter2.setFilterId(filterId)
-		filter2.filterByNameWithWildcards("CR?N")
+		filter2.filterByNameWithWildcards("CR?N", complete=False)
 		filter2.outputAssetId().basedOnName()
 		filter2.setFilterType(FilterType.CUCKOO)
 		print(filter2)
@@ -105,18 +102,15 @@ async def main():
 
 		filters = [filter, filter2]
 
-
-		##########################################################################################
-		##################################### Upload filters #####################################
-		##########################################################################################
-
-		masterVersion += 1
-
-		for f in filters:
-			print(f"Upload filter {f.getFilterId()}")
-			await uart.control.uploadFilter(f)
-		print("Commit")
-		await uart.control.commitFilterChanges(masterVersion, filters)
+		if args.address is not None:
+			print("Set filters via BLE.")
+			await ble.connect(args.address)
+			masterVersion = await ble.control.setFilters(filters)
+			await ble.disconnect()
+		else:
+			print("Set filters via UART.")
+			masterVersion = await uart.control.setFilters(filters)
+		print("Master version:", masterVersion)
 
 		# Simply keep the program running.
 		while True:
@@ -126,6 +120,7 @@ async def main():
 	finally:
 		print("\nStopping UART..")
 		uart.stop()
+		await ble.shutDown()
 		print("Stopped")
 
 asyncio.run(main())
