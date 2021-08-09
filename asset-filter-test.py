@@ -7,6 +7,7 @@ import argparse
 import os
 import asyncio
 
+import crownstone_core
 from crownstone_ble import CrownstoneBle
 from crownstone_core.packets.assetFilter.FilterCommandPackets import FilterSummariesPacket
 from crownstone_core.packets.assetFilter.FilterMetaDataPackets import FilterType
@@ -15,9 +16,6 @@ from crownstone_core.packets.assetFilter.util import AssetFilterMasterCrc
 from crownstone_uart import CrownstoneUart
 
 from bluenet_logs import BluenetLogs
-
-import sys
-print(sys.path)
 
 import logging
 
@@ -72,6 +70,10 @@ uart = CrownstoneUart()
 # Init the Crownstone BLE lib.
 ble = CrownstoneBle()
 
+print("core version:", crownstone_core.__version__)
+print("ble version: ", ble.__version__)
+print("uart version:", uart.__version__)
+
 async def main():
 	# The try except part is just to catch a control+c to gracefully stop the UART lib.
 	try:
@@ -84,18 +86,18 @@ async def main():
 		filter.outputMacRssiReport()
 		filter.setProfileId(0)
 		print(filter)
-		print(filter.toBuffer())
-		print("Filter size:", len(filter.toBuffer()))
+		print(filter.serialize())
+		print("Filter size:", len(filter.serialize()))
 		print("Filter CRC:", filter.getCrc())
 
 		filterId += 1
 		filter2 = AssetFilter(filterId)
-		filter2.filterByNameWithWildcards("C?W*", complete=False)
+		filter2.filterByNameWithWildcards("c?w*", complete=False)
 		filter2.outputAssetId().basedOnName()
 		filter2.setFilterType(FilterType.CUCKOO)
 		print(filter2)
-		print(filter2.toBuffer())
-		print("Filter size:", len(filter2.toBuffer()))
+		print(filter2.serialize())
+		print("Filter size:", len(filter2.serialize()))
 		print("Filter CRC:", filter2.getCrc())
 
 		filters = [filter, filter2]
