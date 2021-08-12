@@ -9,10 +9,8 @@ import asyncio
 
 import crownstone_core
 from crownstone_ble import CrownstoneBle
-from crownstone_core.packets.assetFilter.FilterCommandPackets import FilterSummariesPacket
 from crownstone_core.packets.assetFilter.FilterMetaDataPackets import FilterType
 from crownstone_core.packets.assetFilter.builders.AssetFilter import AssetFilter
-from crownstone_core.packets.assetFilter.util import AssetFilterMasterCrc
 from crownstone_uart import CrownstoneUart
 
 from bluenet_logs import BluenetLogs
@@ -75,7 +73,7 @@ print("ble version: ", ble.__version__)
 print("uart version:", uart.__version__)
 
 async def main():
-	# The try except part is just to catch a control+c to gracefully stop the UART lib.
+	# The try except part is just to catch a control+c to gracefully stop the libs.
 	try:
 		print(f"Listening for logs and using files in \"{sourceFilesDir}\" to find the log formats.")
 		await uart.initialize_usb(port=args.device, writeChunkMaxSize=64)
