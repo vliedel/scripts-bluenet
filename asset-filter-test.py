@@ -12,6 +12,7 @@ import crownstone_core
 from crownstone_ble import CrownstoneBle
 from crownstone_core import Conversion
 from crownstone_core.packets.assetFilter.FilterMetaDataPackets import FilterType
+from crownstone_core.packets.assetFilter.FilterOutputPackets import FilterOutputDescriptionType
 from crownstone_core.packets.assetFilter.builders.AssetFilter import AssetFilter
 from crownstone_uart import CrownstoneUart, UartEventBus, UartTopics
 
@@ -20,7 +21,7 @@ from bluenet_logs import BluenetLogs
 import logging
 
 from crownstone_uart.core.uart.uartPackets.AssetMacReport import AssetMacReport
-from crownstone_uart.core.uart.uartPackets.NearestCrownstones import NearestCrownstoneTrackingUpdate
+from crownstone_uart.core.uart.uartPackets.AssetIdReport import AssetIdReport
 
 from Crc32 import crc32_table
 
@@ -35,6 +36,7 @@ mac_addresses = [
 	"d0:d2:58:31:65:94",
 	"cd:01:f1:c0:68:12",
 	"e4:5c:b2:ec:1d:20",
+
 	"d0:2b:1d:2c:de:0a",
 	"d1:7d:73:67:3f:d7",
 	"e3:4a:7e:46:58:01",
@@ -428,11 +430,6 @@ for mac in mac_addresses:
 unique_and_sorted_mac_addresses.sort()
 print(f"{len(unique_and_sorted_mac_addresses)} unique MAC addresses")
 
-received_mac_addresses = {}
-for mac in mac_addresses:
-	received_mac_addresses[mac] = []
-
-
 defaultSourceFilesDir = os.path.abspath(f"{os.path.dirname(os.path.abspath(__file__))}/../source")
 
 argParser = argparse.ArgumentParser(description="Client to show binary logs")
@@ -473,10 +470,10 @@ sourceFilesDir = args.sourceFilesDir
 
 
 # Init bluenet logs, it will listen to events from the Crownstone lib.
-# bluenetLogs = BluenetLogs()
+bluenetLogs = BluenetLogs()
 
 # Set the dir containing the bluenet source code files.
-# bluenetLogs.setSourceFilesDir(sourceFilesDir)
+bluenetLogs.setSourceFilesDir(sourceFilesDir)
 
 # Init the Crownstone UART lib.
 uart = CrownstoneUart()
@@ -494,17 +491,121 @@ async def main():
 		print(f"Listening for logs and using files in \"{sourceFilesDir}\" to find the log formats.")
 		await uart.initialize_usb(port=args.device, writeChunkMaxSize=64)
 
-		def onAssetMac(report: AssetMacReport):
-			print(f"onAssetMac mac={report.assetMacAddress}")
+		filter_id = 0
+		filter0 = AssetFilter(filter_id)
+		filter0.filterByMacAddress(["01:23:45:67:89:AB", "01:23:45:67:89:CD"])
+		filter0.outputNone()
+		filter0.setProfileId(0)
+		print(filter0)
+		print(filter0.serialize())
+		print("Filter size:", len(filter0.serialize()))
+		print("Filter CRC:", filter0.getCrc())
 
-		def onAssetId(report: NearestCrownstoneTrackingUpdate):
-			print(f"onAssetId id={report.assetId}")
+		filter_id += 1
+		filter1 = AssetFilter(filter_id)
+		filter1.filterByNameWithWildcards("C?W*", complete=False)
+		filter1.outputMacRssiReport()
+		filter1.setFilterType(FilterType.EXACT_MATCH)
+		print(filter1)
+		print(filter1.serialize())
+		print("Filter size:", len(filter1.serialize()))
+		print("Filter CRC:", filter1.getCrc())
+
+		# Filter=MAC, output=ID, input=MAC
+		filter_id += 1
+		filter2 = AssetFilter(filter_id)
+		filter2.filterByMacAddress(mac_addresses[0:10])
+		filter2.outputAssetId().basedOnMac()
+		filter2.setFilterType(FilterType.CUCKOO)
+		print(filter2)
+		print(filter2.serialize())
+		print("Filter size:", len(filter2.serialize()))
+		print("Filter CRC:", filter2.getCrc())
+
+		filter_id += 1
+		filter3 = AssetFilter(filter_id)
+		filter3.filterByAdData(0x16, [Conversion.uint16_to_uint8_array(0xC001)], 3)
+		filter3.outputAssetId().basedOnMac()
+		filter3.setFilterType(FilterType.EXACT_MATCH)
+		print(filter3)
+		print(filter3.serialize())
+		print("Filter size:", len(filter3.serialize()))
+		print("Filter CRC:", filter3.getCrc())
+
+		filter_id += 1
+		filter4 = AssetFilter(filter_id)
+		filter4.filterByMacAddress(mac_addresses[0:10])
+		filter4.setFilterType(FilterType.EXACT_MATCH)
+		filter4.setExclude()
+		print(filter4)
+		print(filter4.serialize())
+		print("Filter size:", len(filter4.serialize()))
+		print("Filter CRC:", filter4.getCrc())
+
+		filter_id += 1
+		filter5 = AssetFilter(filter_id)
+		filter5.filterByNameWithWildcards("C?W*", complete=False)
+		filter5.outputAssetId().basedOnMac()
+		filter5.setFilterType(FilterType.EXACT_MATCH)
+		print(filter5)
+		print(filter5.serialize())
+		print("Filter size:", len(filter5.serialize()))
+		print("Filter CRC:", filter5.getCrc())
+
+		filter_id += 1
+		filter6 = AssetFilter(filter_id)
+		filter6.filterByAdData(0x16, [Conversion.uint16_to_uint8_array(0xC001)], 3)
+		filter6.outputNone()
+		filter6.setFilterType(FilterType.EXACT_MATCH)
+		print(filter6)
+		print(filter6.serialize())
+		print("Filter size:", len(filter6.serialize()))
+		print("Filter CRC:", filter6.getCrc())
+
+		filters = [filter0, filter1, filter2, filter3, filter4, filter5]
+		# filters = [filter1, filter2, filter3, filter4, filter5]
+		filters = [filter3, filter6]
+
+		if args.address is not None:
+			print("Set filters via BLE.")
+			await ble.connect(args.address)
+			masterVersion = await ble.control.setFilters(filters)
+			await ble.disconnect()
+		else:
+			print("Set filters via UART.")
+			masterVersion = await uart.control.setFilters(filters)
+		print("Master version:", masterVersion)
+
+
+
+		##### Listen for results #####
+
+		# Usage: received_mac_addresses[asset_mac][filter_id][crownstone_id] = [timestamp, timestamp, ...]
+		received_mac_addresses = {}
+		for mac in mac_addresses:
+			received_mac_addresses[mac] = {}
+			# for f in filters:
+			# 	filter_id = f.getFilterId()
+			for filter_id in range(0, 8):
+				received_mac_addresses[mac][filter_id] = {}
+
+		def onAssetMac(report: AssetMacReport):
+			print(f"onAssetMac mac={report.assetMacAddress} crownstoneId={report.crownstoneId} rssi={report.rssi} channel={report.channel}")
+			mac = report.assetMacAddress
+			for f in filters:
+				if f._outputType == FilterOutputDescriptionType.MAC_ADDRESS:
+					if mac in received_mac_addresses:
+						received_mac_addresses[mac][f.getFilterId()].setdefault(report.crownstoneId, []).append(datetime.now())
+
+		def onAssetId(report: AssetIdReport):
+			print(f"onAssetId id={report.assetId} crownstoneId={report.crownstoneId} rssi={report.rssi} channel={report.channel} passedFilterIds={report.passedFilterIds}")
 
 			found = False
 			for mac, assetId in assetIds.items():
 				if assetId == report.assetId:
 					found = True
-					received_mac_addresses[mac].append(datetime.now())
+					for filter_id in report.passedFilterIds:
+						received_mac_addresses[mac][filter_id].setdefault(report.crownstoneId, []).append(datetime.now())
 
 					# Output a format that the log parser can handle.
 					# Example: [2021-06-28 13:42:03.142532] asset mac=60:c0:bf:27:e5:67 scanned by id=96
@@ -517,52 +618,7 @@ async def main():
 			# print(f"  MAC={mac_addresses_in_filter[report.assetId]}")
 
 		UartEventBus.subscribe(UartTopics.assetTrackingReport, onAssetMac)
-		UartEventBus.subscribe(UartTopics.nearestCrownstoneTrackingUpdate, onAssetId)
-
-		filterId = 0
-		filter = AssetFilter(filterId)
-		filter.filterByMacAddress(["01:23:45:67:89:AB", "01:23:45:67:89:CD"])
-		filter.outputMacRssiReport()
-		filter.setProfileId(0)
-		print(filter)
-		print(filter.serialize())
-		print("Filter size:", len(filter.serialize()))
-		print("Filter CRC:", filter.getCrc())
-
-		filterId += 1
-		filter2 = AssetFilter(filterId)
-		filter2.filterByNameWithWildcards("C?W*", complete=False)
-		# filter2.outputAssetId().basedOnName()
-		filter2.outputMacRssiReport()
-		filter2.setFilterType(FilterType.CUCKOO)
-		print(filter2)
-		print(filter2.serialize())
-		print("Filter size:", len(filter2.serialize()))
-		print("Filter CRC:", filter2.getCrc())
-
-		filterId += 1
-		filter3 = AssetFilter(filterId)
-		filter3.filterByMacAddress(mac_addresses)
-		# filter3.outputAssetId().basedOnName()
-		filter3.outputAssetId().basedOnMac()
-		# filter3.outputMacRssiReport()
-		filter3.setFilterType(FilterType.CUCKOO)
-		print(filter3)
-		print(filter3.serialize())
-		print("Filter size:", len(filter3.serialize()))
-		print("Filter CRC:", filter3.getCrc())
-
-		filters = [filter, filter2, filter3]
-
-		if args.address is not None:
-			print("Set filters via BLE.")
-			await ble.connect(args.address)
-			masterVersion = await ble.control.setFilters(filters)
-			await ble.disconnect()
-		else:
-			print("Set filters via UART.")
-			masterVersion = await uart.control.setFilters(filters)
-		print("Master version:", masterVersion)
+		UartEventBus.subscribe(UartTopics.assetIdReport, onAssetId)
 
 		# Simply keep the program running.
 		while True:
@@ -570,14 +626,20 @@ async def main():
 	except KeyboardInterrupt:
 		pass
 	finally:
-		for mac, timestamps in received_mac_addresses.items():
-			print(f"{mac} received {len(timestamps)} times")
-			if len(timestamps) > 1:
-				dts = []
-				for i in range(1, len(timestamps)):
-					dt = (timestamps[i] - timestamps[i - 1]).total_seconds()
-					dts.append(dt)
-				# print(f"  dts={dts}")
+		for mac in received_mac_addresses.keys():
+			print(f"MAC {mac}")
+			for filter_id in received_mac_addresses[mac].keys():
+				print(f"    Filter ID {filter_id}")
+				for crownstone_id in received_mac_addresses[mac][filter_id].keys():
+					timestamps = received_mac_addresses[mac][filter_id][crownstone_id]
+
+					dts = []
+					if len(timestamps) > 1:
+						for i in range(1, len(timestamps)):
+							dt = (timestamps[i] - timestamps[i - 1]).total_seconds()
+							dts.append(dt)
+
+					print(f"        Crownstone ID {crownstone_id} len={len(timestamps)} dts={dts}")
 
 		print("\nStopping UART..")
 		uart.stop()
