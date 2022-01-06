@@ -256,6 +256,8 @@ erase_flash() {
 upload_firmware() {
 	cs_info "upload firmware"
 	cd "$BLUENET_BUILD_DIR/$target"
+	make extract_logs
+	checkError "Error extracting logs"
 	make write_application
 	checkError "Error uploading firmware"
 }
