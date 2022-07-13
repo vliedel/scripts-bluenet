@@ -1,6 +1,9 @@
 #!/usr/bin/python3
 import json
 import sys
+import re
+
+PRINT_COMPARES = False
 
 if (len(sys.argv) < 3):
 	print(f"Usage: {sys.argv[0]} <cloud_file> <map_file>")
@@ -19,9 +22,19 @@ for it in board_map:
 
 print(uicr_per_hardware_version)
 
+uicr_keys = sorted(uicr_per_hardware_version[str(board_map[0]["hardwareVersion"])].keys())
+
+
 uicr_not_matching = {}
 
 uicr_in_cloud = {}
+
+unknown_hardware_versions = []
+
+release_firmware_version_regex = re.compile("\d+\.\d+\.\d+")
+
+#release_hardware_version_regex = re.compile("\d+[A-Z0-9]{6}")
+release_hardware_version_regex = re.compile("\d{11}")
 
 for stone in cloud_data:
 	firmware_version = stone.get("firmwareVersion", None)
@@ -59,24 +72,14 @@ for stone in cloud_data:
 	if hardware_version not in uicr_per_hardware_version:
 		print("Unknown hardware version:", hardware_version)
 
-		# if hardware_version.startswith("10"):
-		# 	print(stone)
-		continue
+		if release_hardware_version_regex.match(hardware_version):
+			unknown_hardware_versions.append(hardware_version)
 
 	if uicr is None:
 		continue
 
-	mapped_uicr = uicr_per_hardware_version[hardware_version]
-
-	uicr_keys = sorted(mapped_uicr.keys())
-
 	uicr_keys_set = uicr_keys.copy()
 	uicr_keys_set.remove("board")
-
-	uicr_keys_compared = uicr_keys.copy()
-	uicr_keys_compared.remove("productionYear")
-	uicr_keys_compared.remove("productionWeek")
-	uicr_keys_compared.remove("productHousing")
 
 	# Check if UICR is set on the crownstone.
 	uicr_set = False
@@ -88,22 +91,36 @@ for stone in cloud_data:
 		print("UICR not set on stone, ignore")
 		continue
 
+	if not release_firmware_version_regex.match(firmware_version):
+		print("Non-release firmware version, ignore")
+		continue
+
 	# Keep up all UICRs in the cloud.
 	if hardware_version not in uicr_in_cloud:
 		uicr_in_cloud[hardware_version] = []
 	uicr_in_cloud[hardware_version].append(uicr)
 
-	# Compare values
+	# Compare UICR from cloud with mapped UICR
+	if hardware_version not in uicr_per_hardware_version:
+		continue
+	mapped_uicr = uicr_per_hardware_version[hardware_version]
+
+	uicr_keys_compared = uicr_keys.copy()
+	uicr_keys_compared.remove("productionYear")
+	uicr_keys_compared.remove("productionWeek")
+	uicr_keys_compared.remove("productHousing")
+
 	match = True
 	for key in uicr_keys_compared:
 		if uicr.get(key) != mapped_uicr.get(key):
 			match = False
 
 	if not match:
-		print("UICR does not match:")
-		print("cloud:", stone)
-		for key in uicr_keys:
-			print(f"{key}: cloud={uicr.get(key)} mapped={mapped_uicr.get(key)}")
+		if PRINT_COMPARES:
+			print("UICR does not match:")
+			print("cloud:", stone)
+			for key in uicr_keys:
+				print(f"{key}: cloud={uicr.get(key)} mapped={mapped_uicr.get(key)}")
 
 		# Keep up all the non matching UICRs
 		if hardware_version not in uicr_not_matching:
@@ -131,6 +148,11 @@ for hardware_version in uicr_not_matching.keys():
 	# for key in sorted(uicr_per_hardware_version[hardware_version].keys()):
 	# 	print(f"    {key}: cloud={uicr_not_matching.get(key)} mapped={mapped_uicr.get(key)}")
 
+print("")
+print("All unknown release hardware version strings:")
+print(list(set(unknown_hardware_versions)))
+
+print("")
 print("All UICR combinations found in the cloud (by hardware version):")
 for hardware_version in uicr_in_cloud:
 	# Remove duplicates
@@ -139,9 +161,6 @@ for hardware_version in uicr_in_cloud:
 		if entry not in unique:
 			unique.append(entry)
 	uicr_in_cloud[hardware_version] = unique
-
-	mapped_uicr = uicr_per_hardware_version[hardware_version]
-	uicr_keys = sorted(mapped_uicr.keys())
 
 	print("")
 	print(hardware_version)
