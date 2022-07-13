@@ -1,0 +1,342 @@
+[{
+  "board": 100,
+  "uicr": {
+    "board": 100,
+    "hardwareMajor": 1,
+    "hardwareMinor": 0,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 4,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10104010000
+},
+{
+  "board": 200,
+  "uicr": {
+    "board": 200,
+    "hardwareMajor": 0,
+    "hardwareMinor": 0,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 5,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10105000000
+},
+{
+  "board": 1000,
+  "uicr": {
+    "board": 1000,
+    "hardwareMajor": 0,
+    "hardwareMinor": 1,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 3,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10103000100
+},
+{
+  "board": 1001,
+  "uicr": {
+    "board": 1001,
+    "hardwareMajor": 0,
+    "hardwareMinor": 2,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 3,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10103000200
+},
+{
+  "board": 1002,
+  "uicr": {
+    "board": 1002,
+    "hardwareMajor": 0,
+    "hardwareMinor": 3,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 3,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10103000300
+},
+{
+  "board": 1003,
+  "uicr": {
+    "board": 1003,
+    "hardwareMajor": 0,
+    "hardwareMinor": 4,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 3,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10103000400
+},
+{
+  "board": 1004,
+  "uicr": {
+    "board": 1004,
+    "hardwareMajor": 0,
+    "hardwareMinor": 5,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 3,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10103000500
+},
+{
+  "board": 1007,
+  "uicr": {
+    "board": 1007,
+    "hardwareMajor": 0,
+    "hardwareMinor": 0,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 6,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10106000000
+},
+{
+  "board": 1008,
+  "uicr": {
+    "board": 1008,
+    "hardwareMajor": 0,
+    "hardwareMinor": 1,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 6,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10106000100
+},
+{
+  "board": 1009,
+  "uicr": {
+    "board": 1009,
+    "hardwareMajor": 0,
+    "hardwareMinor": 1,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 8,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10108000100
+},
+{
+  "board": 1010,
+  "uicr": {
+    "board": 1010,
+    "hardwareMajor": 0,
+    "hardwareMinor": 2,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 8,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10108000200
+},
+{
+  "board": 1100,
+  "uicr": {
+    "board": 1100,
+    "hardwareMajor": 0,
+    "hardwareMinor": 0,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 10,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10110000000
+},
+{
+  "board": 1500,
+  "uicr": {
+    "board": 1500,
+    "hardwareMajor": 0,
+    "hardwareMinor": 1,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 2,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10102000100
+},
+{
+  "board": 1501,
+  "uicr": {
+    "board": 1501,
+    "hardwareMajor": 0,
+    "hardwareMinor": 2,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 2,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10102000200
+},
+{
+  "board": 1502,
+  "uicr": {
+    "board": 1502,
+    "hardwareMajor": 1,
+    "hardwareMinor": 0,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 2,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10102010000
+},
+{
+  "board": 1503,
+  "uicr": {
+    "board": 1503,
+    "hardwareMajor": 1,
+    "hardwareMinor": 1,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 2,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10102010100
+},
+{
+  "board": 1504,
+  "uicr": {
+    "board": 1504,
+    "hardwareMajor": 1,
+    "hardwareMinor": 3,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 2,
+    "region": 1,
+    "productFamily": 1,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 10102010300
+},
+{
+  "board": 1505,
+  "uicr": {
+    "board": 1505,
+    "hardwareMajor": 0,
+    "hardwareMinor": 0,
+    "hardwarePatch": 0,
+    "reserved1": 255,
+    "productType": 9,
+    "region": 3,
+    "productFamily": 3,
+    "reserved2": 255,
+    "productionYear": 0,
+    "productionWeek": 0,
+    "productHousing": 0,
+    "reserved3": 255
+  },
+  "hardwareVersion": 30309000000
+}]
