@@ -78,6 +78,11 @@ for stone in cloud_data:
 	if uicr is None:
 		continue
 
+	# Due to a bug in the android app, the key "productionYear" was named "producitonYear" for some time.
+	# Fix this here
+	if "productionYear" not in uicr and "producitonYear" in uicr:
+		uicr["productionYear"] = uicr["producitonYear"]
+
 	uicr_keys_set = uicr_keys.copy()
 	uicr_keys_set.remove("board")
 
@@ -177,3 +182,34 @@ for hardware_version in uicr_in_cloud:
 		for value in values[key]:
 			valuesString += f"{str(value):5} "
 		print(f"    {key:20}: {valuesString}")
+
+
+# Also print for the PRODUCT_NAMING.md document.
+print("")
+product_naming_boards = {}
+for hardware_version in uicr_in_cloud:
+	for entry in uicr_in_cloud[hardware_version]:
+		board = entry.get("board")
+		if board not in product_naming_boards:
+			product_naming_boards[board] = []
+
+		# There are still some entries without production year, that messes up the formatting.
+		product_naming_boards[board].append(f'| {board:4} '
+		                                    f' | {entry.get("productFamily"):1}     '
+		                                    f' | {entry.get("region"):02}    '
+		                                    f' | {entry.get("productType"):02}  '
+		                                    f' | {entry.get("hardwareMajor"):02}   '
+		                                    f' | {entry.get("hardwareMinor"):02}   '
+		                                    f' | {entry.get("hardwarePatch"):02}   '
+		                                    f' | {str(entry.get("productionYear")):2}  '
+		                                    f' | {entry.get("productionWeek"):02}  '
+		                                    f' | {entry.get("productHousing"):1}       |')
+
+print("")
+print("| Board | Family | Market | Type | Major | Minor | Patch | Year | Week | Housing |")
+print("| ----- | ------ | ------ | ---- | ----- | ----- | ----- | ---- | ---- | ------- |")
+for board in sorted(product_naming_boards.keys()):
+	product_naming_boards[board] = list(set(product_naming_boards[board]))
+	for entry in product_naming_boards[board]:
+		print(entry)
+
