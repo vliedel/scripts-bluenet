@@ -40,6 +40,8 @@ def parse(fileName):
 	"""
 
 	timestampMs = 0
+	timeBetweenConsecutiveSamplesMs = 10
+
 
 	allConsecutiveSamples = []
 	consecutiveSamples = []
@@ -70,9 +72,12 @@ def parse(fileName):
 			if (match):
 				try:
 					samplesJson = json.loads(match.group(1))
+					merge = False
 					for i in range(0, len(samplesJson)):
 						samplesType = PowerSampleType(samplesJson[i]["type"])
 						multiplier = samplesJson[i]["multiplier"]
+						if multiplier == 0:
+							multiplier = 1
 						offset = samplesJson[i]["offset"]
 
 						samples = (np.array(samplesJson[i]["samples"]) - offset) * multiplier
@@ -83,6 +88,7 @@ def parse(fileName):
 						if samplesType == PowerSampleType.TriggeredSwitchcraft or samplesType == PowerSampleType.NonTriggeredSwitchcraft:
 							# Buffers are all after each other
 							timestampMs += len(samples) * sampleInterval
+							merge = True
 						if samplesType == PowerSampleType.Filtered or samplesType == PowerSampleType.Unfiltered:
 							if i % 2 == 1:
 								# Buffers are interleaved
@@ -102,23 +108,26 @@ def parse(fileName):
 							"rmsCorrected": calcCurrentOrVoltageRms(samples, calcZero(samples))
 						}
 
-						# Don't merge buffers
-						allConsecutiveSamples.append(consecutiveSamples)
-						allConsecutiveTimestamps.append(consecutiveTimestamps)
-						allConsecutiveMetaData.append(consecutiveMetaData)
-						consecutiveSamples = []
-						consecutiveTimestamps = []
+						if not merge:
+							allConsecutiveSamples.append(consecutiveSamples)
+							allConsecutiveTimestamps.append(consecutiveTimestamps)
+							allConsecutiveMetaData.append(consecutiveMetaData)
+							consecutiveSamples = []
+							consecutiveTimestamps = []
+							timestampMs += timeBetweenConsecutiveSamplesMs
 				except Exception as e:
 					print("Invalid data in line:", line)
 					print(e)
 					exit(1)
 
-
-
-	if (len(consecutiveSamples)):
-		allConsecutiveSamples.append(consecutiveSamples)
-		allConsecutiveTimestamps.append(consecutiveTimestamps)
-		allConsecutiveMetaData.append(consecutiveMetaData)
+				# Reset every line if not done yet.
+				if merge and len(consecutiveSamples):
+					allConsecutiveSamples.append(consecutiveSamples)
+					allConsecutiveTimestamps.append(consecutiveTimestamps)
+					allConsecutiveMetaData.append(consecutiveMetaData)
+					consecutiveSamples = []
+					consecutiveTimestamps = []
+					timestampMs += timeBetweenConsecutiveSamplesMs
 
 	return allConsecutiveTimestamps, allConsecutiveSamples, allConsecutiveMetaData
 
