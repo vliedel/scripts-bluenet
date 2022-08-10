@@ -157,6 +157,12 @@ print("")
 print("All unknown release hardware version strings:")
 print(list(set(unknown_hardware_versions)))
 
+print("Known unknown release hardware version strings:")
+print("10108000400: board=1100 aka CR01R02v4")
+print("10103020000: board=1007 aka ACR01B7B / ACR01B9C / ACR01B9E / ACR01B9F / ACR01B10A")
+print("10103010000: board=1004 aka ACR01B1E")
+print("10102010200: board=1504 aka ACR01B2F / ACR01B2G")
+
 print("")
 print("All UICR combinations found in the cloud (by hardware version):")
 for hardware_version in uicr_in_cloud:
