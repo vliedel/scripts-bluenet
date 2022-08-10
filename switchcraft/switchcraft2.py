@@ -7,6 +7,7 @@ import sys, os
 # import cProfile
 
 sys.path.append('../record')
+sys.path.append('../parse')
 import parse_recorded_voltage
 import parse_app_files
 
@@ -88,30 +89,25 @@ def main():
 		if (fileName.split('.')[-1] == 'json'):
 			allTimestamps, allSamples = parse_recorded_voltage.parse(fileName, filterTimeJumps=False)
 		else:
-			allTimestamps, allSamples = parse_app_files.parse(fileName)
+			allTimestamps, allSamples, allMetadata = parse_app_files.parse(fileName)
 
 		for i in range(0, len(allSamples)):
 			numBufs = int(len(allSamples[i]) / SAMPLES_PER_BUFFER)
 
 			if (numBufs < ALGORITHM_NUM_BUFFERS):
+				print(f"Skipping {i} as it only has {numBufs} buffers")
 				continue
 
 			for j in range(0, numBufs - ALGORITHM_NUM_BUFFERS + 1):
-				buf0 = np.array(allSamples[i][(j + 0) * SAMPLES_PER_BUFFER : (j + 1) * SAMPLES_PER_BUFFER])
-				buf1 = np.array(allSamples[i][(j + 1) * SAMPLES_PER_BUFFER : (j + 2) * SAMPLES_PER_BUFFER])
-				buf2 = np.array(allSamples[i][(j + 2) * SAMPLES_PER_BUFFER : (j + 3) * SAMPLES_PER_BUFFER])
-				buf3 = np.array(allSamples[i][(j + 3) * SAMPLES_PER_BUFFER : (j + 4) * SAMPLES_PER_BUFFER])
+				bufs = ALGORITHM_NUM_BUFFERS * [[]]
+				t = ALGORITHM_NUM_BUFFERS * [[]]
+				for k in range(0, ALGORITHM_NUM_BUFFERS):
+					bufs[k] = np.array(allSamples[i][(j + k) * SAMPLES_PER_BUFFER : (j + k + 1) * SAMPLES_PER_BUFFER])
+					t[k] = np.array(allTimestamps[i][(j + k) * SAMPLES_PER_BUFFER: (j + k + 1) * SAMPLES_PER_BUFFER])
 
-				t0 = np.array(allTimestamps[i][(j + 0) * SAMPLES_PER_BUFFER: (j + 1) * SAMPLES_PER_BUFFER])
-				t1 = np.array(allTimestamps[i][(j + 1) * SAMPLES_PER_BUFFER: (j + 2) * SAMPLES_PER_BUFFER])
-				t2 = np.array(allTimestamps[i][(j + 2) * SAMPLES_PER_BUFFER: (j + 3) * SAMPLES_PER_BUFFER])
-				t3 = np.array(allTimestamps[i][(j + 3) * SAMPLES_PER_BUFFER: (j + 4) * SAMPLES_PER_BUFFER])
-
-				diffBuffer = buf3 - buf1
-				diffAroundBuffer = buf3 - buf0
-
-				scores = calcScores(buf0, buf1, buf3)
-				scores.extend(calcScores(buf0, buf2, buf3))
+				scores = []
+				for k in range(0, ALGORITHM_NUM_BUFFERS - 2):
+					scores.extend(calcScores(bufs[0], bufs[k + 1], bufs[3]))
 
 				foundSwitch = False
 				for [score12, score23, score13] in scores:
@@ -132,13 +128,23 @@ def main():
 
 				if (foundSwitch):
 					foundSwitches.append(i)
-					print("buffer", i, j, "scored", scores)
+					print(f"Found switch in buffer {i} {j}. Score: {scores}")
+				else:
+					print(f"No switch found in buffer {i} {j}. Score: {scores}")
+
 
 				# Create a list of timestamps to plot the scores at.
 				# We plot this halfway the middle buffer, as that's where the switch should be
-				scoreTimestampInd = int(len(t0) / 2)
-				scoreTimestampIndStep = 10
-				scoreTimestamps = t1[scoreTimestampInd:scoreTimestampInd + len(scores) * scoreTimestampIndStep:scoreTimestampIndStep]
+				scoreTimestamps = []
+				scoreTimestampInd = int(len(t[0]) / 2)
+				for k in range(0, ALGORITHM_NUM_BUFFERS - 2):
+					scoreTimestampIndStep = 10
+					scoreTimestamps.extend(t[k + 1][scoreTimestampInd:scoreTimestampInd + 3 * scoreTimestampIndStep:scoreTimestampIndStep])
+				if len(scores) != len(scoreTimestamps):
+					print(f"Score timestamps are of different size than scores")
+					print("scoreTimestamps:", scoreTimestamps)
+					print("scores:", scores)
+					exit(1)
 
 				# Keep up scores of this file.
 				allScoreTimestamps.append(scoreTimestamps)
@@ -149,11 +155,10 @@ def main():
 						pass
 					else:
 						if foundSwitch:
-							# if (leftScore12 > THRESHOLD):
-							ax1.plot(t0, buf0, '.-')
-							ax1.plot(t1, buf1, '.-')
-							ax1.plot(t2, buf2, '.-')
-							ax1.plot(t3, buf3, '.-')
+							# Plot buffers
+							for k in range(0, ALGORITHM_NUM_BUFFERS):
+								ax1.plot(t[k], bufs[k], '.-')
+
 							scoreInd = 0
 							for [score12, score23, score13] in scores:
 								ax2.plot(scoreTimestamps[scoreInd], score12, '<')
@@ -161,48 +166,61 @@ def main():
 								ax2.plot(scoreTimestamps[scoreInd], score23, '>')
 								scoreInd += 1
 
-							ax2.plot([t0[0], t3[-1]], [THRESHOLD_DIFFERENT, THRESHOLD_DIFFERENT], '-k')
-							ax2.plot([t0[0], t3[-1]], [THRESHOLD_SIMILAR, THRESHOLD_SIMILAR], '--k')
+							# Plot the diffs
+							for k in range(0, ALGORITHM_NUM_BUFFERS - 2):
+								diffBuffer = bufs[-1] - bufs[k + 1]
+								diffAroundBuffer = bufs[-1] - bufs[0]
+								ax1.plot(t[k + 1], diffBuffer)
+								ax1.plot(t[k + 1], diffAroundBuffer, '--')
 
-							ax1.plot(t1, diffBuffer)
-							ax1.plot(t1, diffAroundBuffer, '--')
+							# Plot the threshold lines
+							ax2.plot([t[0][0], t[-1][-1]], [THRESHOLD_DIFFERENT, THRESHOLD_DIFFERENT], '-k')
+							ax2.plot([t[0][0], t[-1][-1]], [THRESHOLD_SIMILAR, THRESHOLD_SIMILAR], '--k')
+
 
 		# End of loop over different buffers
 		if PLOT:
 			if PLOT_DEBUG or (PLOT_NONE_FOUND and len(foundSwitches) == 0):
 				for i in range(0, len(allSamples)):
 					numBufs = int(len(allSamples[i]) / SAMPLES_PER_BUFFER)
+					if (numBufs < ALGORITHM_NUM_BUFFERS):
+						continue
+
 					for j in range(0, numBufs - ALGORITHM_NUM_BUFFERS + 1):
-						buf0 = np.array(allSamples[i][(j + 0) * SAMPLES_PER_BUFFER: (j + 1) * SAMPLES_PER_BUFFER])
-						buf1 = np.array(allSamples[i][(j + 1) * SAMPLES_PER_BUFFER: (j + 2) * SAMPLES_PER_BUFFER])
-						buf2 = np.array(allSamples[i][(j + 2) * SAMPLES_PER_BUFFER: (j + 3) * SAMPLES_PER_BUFFER])
-						buf3 = np.array(allSamples[i][(j + 3) * SAMPLES_PER_BUFFER: (j + 4) * SAMPLES_PER_BUFFER])
+						bufs = ALGORITHM_NUM_BUFFERS*[[]]
+						t = ALGORITHM_NUM_BUFFERS*[[]]
+						for k in range(0, ALGORITHM_NUM_BUFFERS):
+							bufs[k] = np.array(allSamples[i][(j + k) * SAMPLES_PER_BUFFER: (j + k + 1) * SAMPLES_PER_BUFFER])
+							t[k] = np.array(allTimestamps[i][(j + k) * SAMPLES_PER_BUFFER: (j + k + 1) * SAMPLES_PER_BUFFER])
 
-						t0 = np.array(allTimestamps[i][(j + 0) * SAMPLES_PER_BUFFER: (j + 1) * SAMPLES_PER_BUFFER])
-						t1 = np.array(allTimestamps[i][(j + 1) * SAMPLES_PER_BUFFER: (j + 2) * SAMPLES_PER_BUFFER])
-						t2 = np.array(allTimestamps[i][(j + 2) * SAMPLES_PER_BUFFER: (j + 3) * SAMPLES_PER_BUFFER])
-						t3 = np.array(allTimestamps[i][(j + 3) * SAMPLES_PER_BUFFER: (j + 4) * SAMPLES_PER_BUFFER])
+						# Plot first buffer
+						ax1.plot(t[0], bufs[0], '.-')
 
-						diffBuffer = buf3 - buf1
-						diffAroundBuffer = buf3 - buf0
+						# Plot the diffs
+						for k in range(0, ALGORITHM_NUM_BUFFERS - 2):
+							diffBuffer = bufs[-1] - bufs[k + 1]
+							diffAroundBuffer = bufs[-1] - bufs[0]
+							ax1.plot(t[k + 1], diffBuffer)
+							ax1.plot(t[k + 1], diffAroundBuffer, '--')
 
-						ax1.plot(t0, buf0, '.-')
-						ax1.plot(t1, diffBuffer)
-						ax1.plot(t1, diffAroundBuffer, '--')
+					# Also plot last buffers of consecutive buffers list.
+					for j in range(1, ALGORITHM_NUM_BUFFERS):
+						ax1.plot(t[j], bufs[j], '.-')
 
-					# Also plot last 2 buffers of consecutive buffers list
-					ax1.plot(t1, buf1, '.-')
-					ax1.plot(t2, buf2, '.-')
-					ax1.plot(t3, buf3, '.-')
 
-				scoresMat = np.array(allScores)
-				ax2.plot(allScoreTimestamps, scoresMat[:,:,0], '<') # scores 12
-				ax2.plot(allScoreTimestamps, scoresMat[:,:,1], '>') # scores 23
-				ax2.plot(allScoreTimestamps, scoresMat[:,:,2], '^') # scores 13
-				# ax2.plot(allScoreTimestamps, scoresMat[:,:,3], '.') # ratio
+				if len(allScores):
+					scoresMat = np.array(allScores)
+					ax2.plot(allScoreTimestamps, scoresMat[:,:,0], '<') # scores 12
+					ax2.plot(allScoreTimestamps, scoresMat[:,:,1], '>') # scores 23
+					ax2.plot(allScoreTimestamps, scoresMat[:,:,2], '^') # scores 13
+					# ax2.plot(allScoreTimestamps, scoresMat[:,:,3], '.') # ratio
 
+				# Plot the thresholds
 				ax2.plot([allTimestamps[0][0], allTimestamps[-1][-1]], [THRESHOLD_DIFFERENT, THRESHOLD_DIFFERENT], '-k')
 				ax2.plot([allTimestamps[0][0], allTimestamps[-1][-1]], [THRESHOLD_SIMILAR, THRESHOLD_SIMILAR], '--k')
+
+				# Plot the 0 diff line
+				ax1.plot([allTimestamps[0][0], allTimestamps[-1][-1]], [0, 0], ':k')
 
 #			if PLOT_DEBUG or (PLOT_NONE_FOUND and len(foundSwitches) == 0):
 #				ax1.plot(restartTimestampsMs, [0]*len(restartTimestampsMs), 'x')
@@ -222,8 +240,8 @@ def main():
 		allFilesBestScores.append(highestScores[1:])
 #		allFilesBestScores.append(largestDiffScores[1:])
 
-	print("with switch:", filesWithSwitch)
-	print("without switch:", filesWithoutSwitch)
+	print("files with switch:", filesWithSwitch)
+	print("files without switch:", filesWithoutSwitch)
 	bestScoresMat = np.array(allFilesBestScores)
 	if PLOT_SCORES and len(fileNames) > 1:
 		fig, (ax1, ax2) = plt.subplots(2, sharex=True)
