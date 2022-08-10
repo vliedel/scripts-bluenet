@@ -27,7 +27,7 @@ PLOT = True
 PLOT_NONE_FOUND = True
 
 # Plot all data
-PLOT_DEBUG = False
+PLOT_DEBUG = True
 
 # Plot overall scores
 PLOT_SCORES = True
@@ -37,9 +37,9 @@ PLOT_SCORES = True
 ############################
 ##### Algorithm config #####
 ############################
-ALGORITHM_NUM_BUFFERS = 3    # Number of buffers the algorithm needs in memory
-THRESHOLD_DIFFERENT = 100000 # Difference scores above this threshold are considered to be different
-THRESHOLD_SIMILAR =   100000 # Difference scores below this threshold are considered to be similar
+ALGORITHM_NUM_BUFFERS = 4    # Number of buffers the algorithm needs in memory
+THRESHOLD_DIFFERENT = 500000 # Difference scores above this threshold are considered to be different
+THRESHOLD_SIMILAR =   500000 # Difference scores below this threshold are considered to be similar
 
 
 
@@ -100,15 +100,18 @@ def main():
 				buf0 = np.array(allSamples[i][(j + 0) * SAMPLES_PER_BUFFER : (j + 1) * SAMPLES_PER_BUFFER])
 				buf1 = np.array(allSamples[i][(j + 1) * SAMPLES_PER_BUFFER : (j + 2) * SAMPLES_PER_BUFFER])
 				buf2 = np.array(allSamples[i][(j + 2) * SAMPLES_PER_BUFFER : (j + 3) * SAMPLES_PER_BUFFER])
+				buf3 = np.array(allSamples[i][(j + 3) * SAMPLES_PER_BUFFER : (j + 4) * SAMPLES_PER_BUFFER])
 
 				t0 = np.array(allTimestamps[i][(j + 0) * SAMPLES_PER_BUFFER: (j + 1) * SAMPLES_PER_BUFFER])
 				t1 = np.array(allTimestamps[i][(j + 1) * SAMPLES_PER_BUFFER: (j + 2) * SAMPLES_PER_BUFFER])
 				t2 = np.array(allTimestamps[i][(j + 2) * SAMPLES_PER_BUFFER: (j + 3) * SAMPLES_PER_BUFFER])
+				t3 = np.array(allTimestamps[i][(j + 3) * SAMPLES_PER_BUFFER: (j + 4) * SAMPLES_PER_BUFFER])
 
-				diffBuffer = buf2 - buf1
-				diffAroundBuffer = buf2 - buf0
+				diffBuffer = buf3 - buf1
+				diffAroundBuffer = buf3 - buf0
 
-				scores = calcScores(buf0, buf1, buf2)
+				scores = calcScores(buf0, buf1, buf3)
+				scores.extend(calcScores(buf0, buf2, buf3))
 
 				foundSwitch = False
 				for [score12, score23, score13] in scores:
@@ -150,6 +153,7 @@ def main():
 							ax1.plot(t0, buf0, '.-')
 							ax1.plot(t1, buf1, '.-')
 							ax1.plot(t2, buf2, '.-')
+							ax1.plot(t3, buf3, '.-')
 							scoreInd = 0
 							for [score12, score23, score13] in scores:
 								ax2.plot(scoreTimestamps[scoreInd], score12, '<')
@@ -157,8 +161,8 @@ def main():
 								ax2.plot(scoreTimestamps[scoreInd], score23, '>')
 								scoreInd += 1
 
-							ax2.plot([t0[0], t2[-1]], [THRESHOLD_DIFFERENT, THRESHOLD_DIFFERENT], '-k')
-							ax2.plot([t0[0], t2[-1]], [THRESHOLD_SIMILAR, THRESHOLD_SIMILAR], '--k')
+							ax2.plot([t0[0], t3[-1]], [THRESHOLD_DIFFERENT, THRESHOLD_DIFFERENT], '-k')
+							ax2.plot([t0[0], t3[-1]], [THRESHOLD_SIMILAR, THRESHOLD_SIMILAR], '--k')
 
 							ax1.plot(t1, diffBuffer)
 							ax1.plot(t1, diffAroundBuffer, '--')
@@ -172,13 +176,15 @@ def main():
 						buf0 = np.array(allSamples[i][(j + 0) * SAMPLES_PER_BUFFER: (j + 1) * SAMPLES_PER_BUFFER])
 						buf1 = np.array(allSamples[i][(j + 1) * SAMPLES_PER_BUFFER: (j + 2) * SAMPLES_PER_BUFFER])
 						buf2 = np.array(allSamples[i][(j + 2) * SAMPLES_PER_BUFFER: (j + 3) * SAMPLES_PER_BUFFER])
+						buf3 = np.array(allSamples[i][(j + 3) * SAMPLES_PER_BUFFER: (j + 4) * SAMPLES_PER_BUFFER])
 
 						t0 = np.array(allTimestamps[i][(j + 0) * SAMPLES_PER_BUFFER: (j + 1) * SAMPLES_PER_BUFFER])
 						t1 = np.array(allTimestamps[i][(j + 1) * SAMPLES_PER_BUFFER: (j + 2) * SAMPLES_PER_BUFFER])
 						t2 = np.array(allTimestamps[i][(j + 2) * SAMPLES_PER_BUFFER: (j + 3) * SAMPLES_PER_BUFFER])
+						t3 = np.array(allTimestamps[i][(j + 3) * SAMPLES_PER_BUFFER: (j + 4) * SAMPLES_PER_BUFFER])
 
-						diffBuffer = buf2 - buf1
-						diffAroundBuffer = buf2 - buf0
+						diffBuffer = buf3 - buf1
+						diffAroundBuffer = buf3 - buf0
 
 						ax1.plot(t0, buf0, '.-')
 						ax1.plot(t1, diffBuffer)
@@ -187,6 +193,7 @@ def main():
 					# Also plot last 2 buffers of consecutive buffers list
 					ax1.plot(t1, buf1, '.-')
 					ax1.plot(t2, buf2, '.-')
+					ax1.plot(t3, buf3, '.-')
 
 				scoresMat = np.array(allScores)
 				ax2.plot(allScoreTimestamps, scoresMat[:,:,0], '<') # scores 12
